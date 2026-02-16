@@ -54,7 +54,7 @@ export function TaskItem({ task, onComplete, onDelete, onTap, upcoming }: TaskIt
     <div
       data-priority={task.priority}
       data-upcoming={upcoming ? 'true' : undefined}
-      className="relative overflow-hidden rounded-lg mb-2"
+      className={`relative overflow-hidden rounded-lg mb-2 ${upcoming ? 'opacity-60' : ''}`}
     >
       {/* Swipe background reveals */}
       <div className="absolute inset-0 flex">
@@ -70,7 +70,7 @@ export function TaskItem({ task, onComplete, onDelete, onTap, upcoming }: TaskIt
       <div
         ref={ref}
         onClick={() => onTap(task)}
-        className={`relative bg-gray-800 border-l-4 ${PRIORITY_BORDER[task.priority] || PRIORITY_BORDER.default} p-3 cursor-pointer transition-transform ${upcoming ? 'opacity-60' : ''}`}
+        className={`relative bg-gray-800 border-l-4 ${PRIORITY_BORDER[task.priority] || PRIORITY_BORDER.default} p-3 cursor-pointer transition-transform`}
         style={{ transform: `translateX(${offset}px)` }}
       >
         <div className="flex items-center justify-between">

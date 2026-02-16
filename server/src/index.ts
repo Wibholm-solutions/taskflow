@@ -47,11 +47,19 @@ const apiApp = new Hono();
 apiApp.route('/', createTaskRoutes(taskService));
 app.route(`${basePath}/api`, apiApp);
 
-// Serve static files (production build)
-app.use(`${basePath}/*`, serveStatic({ root: './dist/client' }));
+// Serve static files (production build) - strip basePath prefix
+app.use(`${basePath}/*`, serveStatic({
+  root: './dist/client',
+  rewriteRequestPath: (path) => path.replace(basePath, ''),
+}));
 
-// SPA fallback
-app.get(`${basePath}/*`, serveStatic({ root: './dist/client', path: 'index.html' }));
+// SPA fallback - serve index.html for any unmatched route
+app.get(`${basePath}/*`, (c) => {
+  return serveStatic({
+    root: './dist/client',
+    path: 'index.html',
+  })(c, async () => {});
+});
 
 console.log(`TaskFlow running on port ${port}`);
 serve({ fetch: app.fetch, port });
