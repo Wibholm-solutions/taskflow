@@ -7,7 +7,7 @@ Personal task management PWA. Single-user, architected for future multi-user.
 - **Frontend:** React 18 + TailwindCSS 4
 - **Testing:** Vitest
 - **PWA:** Workbox via vite-plugin-pwa
-- **Build:** Vite (client) + tsc (server)
+- **Build:** Vite (client) + esbuild (server)
 
 ## Quick Start
 ```bash
@@ -49,10 +49,10 @@ client/src/
 - TDD: tests written before implementation
 
 ## Status
-- [ ] Project scaffolding
-- [ ] Database schema
-- [ ] Backend API
-- [ ] Recurrence engine
-- [ ] Frontend components
-- [ ] PWA/offline
-- [ ] Docker deployment
+- [x] Project scaffolding
+- [x] Database schema
+- [x] Backend API
+- [x] Recurrence engine
+- [x] Frontend components
+- [x] PWA/offline
+- [x] Docker deployment
