@@ -1,0 +1,14 @@
+services:
+  app:
+    build: .
+    container_name: taskflow
+    ports:
+      - "3101:3000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      PORT: 3000
+      DATABASE_PATH: /app/data/taskflow.db
+      BASE_PATH: /todo
+      NODE_ENV: production
+    restart: unless-stopped
