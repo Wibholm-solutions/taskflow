@@ -5,6 +5,7 @@ import { TaskList } from './components/TaskList';
 import { TaskModal } from './components/TaskModal';
 import { FloatingAddButton } from './components/FloatingAddButton';
 import { Toast } from './components/Toast';
+import { FeedbackButton } from './components/FeedbackButton';
 import type { Task, CreateTaskInput } from './types';
 
 export default function App() {
@@ -73,6 +74,7 @@ export default function App() {
         editTask={editingTask}
       />
       {error && <Toast message={error} onDismiss={clearError} />}
+      <FeedbackButton repo="saabendtsen/taskflow" position="bottom-left" />
     </div>
   );
 }
