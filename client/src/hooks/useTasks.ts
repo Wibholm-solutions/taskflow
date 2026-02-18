@@ -42,23 +42,15 @@ export function useTasks() {
     setActive((prev) => prev.filter((t) => t.id !== id));
     setUpcoming((prev) => prev.filter((t) => t.id !== id));
 
-    api.completeTask(id).then((result) => {
-      if (result.nextInstance) {
-        // Add next instance to the appropriate list
-        const today = new Date().toISOString().split('T')[0];
-        if (result.nextInstance.notBefore && result.nextInstance.notBefore > today) {
-          setUpcoming((prev) => [...prev, result.nextInstance!]);
-        } else {
-          setActive((prev) => [...prev, result.nextInstance!]);
-        }
-      }
+    api.completeTask(id).then(() => {
+      refresh();
     }).catch((e: any) => {
       // Rollback
       setActive(prevActive);
       setUpcoming(prevUpcoming);
       setError(e.message);
     });
-  }, [active, upcoming]);
+  }, [active, upcoming, refresh]);
 
   const deleteTask = useCallback((id: string) => {
     const prevActive = active;
@@ -76,18 +68,13 @@ export function useTasks() {
   const createTask = useCallback(async (input: CreateTaskInput) => {
     try {
       const task = await api.createTask(input);
-      const today = new Date().toISOString().split('T')[0];
-      if (task.notBefore && task.notBefore > today) {
-        setUpcoming((prev) => [...prev, task]);
-      } else {
-        setActive((prev) => [...prev, task]);
-      }
+      await refresh();
       return task;
     } catch (e: any) {
       setError(e.message);
       throw e;
     }
-  }, []);
+  }, [refresh]);
 
   const updateTask = useCallback(async (id: string, input: Partial<CreateTaskInput>) => {
     const prevActive = active;

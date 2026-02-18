@@ -8,11 +8,11 @@ export function calculateNextOccurrence(
   rule: RecurrenceRule,
   completedOn: string
 ): string {
-  const completed = new Date(completedOn + 'T00:00:00');
+  const completed = new Date(completedOn + 'T00:00:00Z');
 
   switch (rule.type) {
     case 'weekdays': {
-      const completedDay = completed.getDay();
+      const completedDay = completed.getUTCDay();
       let minDaysAhead = 8;
 
       for (const targetDay of rule.days) {
@@ -22,23 +22,23 @@ export function calculateNextOccurrence(
       }
 
       const next = new Date(completed);
-      next.setDate(next.getDate() + minDaysAhead);
+      next.setUTCDate(next.getUTCDate() + minDaysAhead);
       return formatDate(next);
     }
 
     case 'days_after': {
       const next = new Date(completed);
-      next.setDate(next.getDate() + rule.interval);
+      next.setUTCDate(next.getUTCDate() + rule.interval);
       return formatDate(next);
     }
 
     case 'months_after': {
       const next = new Date(completed);
-      const targetMonth = next.getMonth() + rule.interval;
-      const targetDay = next.getDate();
-      next.setMonth(targetMonth);
-      if (next.getDate() !== targetDay) {
-        next.setDate(0);
+      const targetMonth = next.getUTCMonth() + rule.interval;
+      const targetDay = next.getUTCDate();
+      next.setUTCMonth(targetMonth);
+      if (next.getUTCDate() !== targetDay) {
+        next.setUTCDate(0);
       }
       return formatDate(next);
     }
