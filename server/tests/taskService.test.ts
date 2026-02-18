@@ -73,6 +73,22 @@ describe('TaskService', () => {
       ]);
     });
 
+    it('should not prioritize future deadlines in sorting', async () => {
+      const nextWeek = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+
+      await service.create({ title: 'Future deadline default', deadline: nextWeek });
+      await service.create({ title: 'No deadline high', priority: 'high' });
+      await service.create({ title: 'No deadline default' });
+
+      const result = await service.listTasks();
+      const titles = result.active.map((t) => t.title);
+      expect(titles).toEqual([
+        'No deadline high',
+        'Future deadline default',
+        'No deadline default',
+      ]);
+    });
+
     it('should exclude completed tasks', async () => {
       await service.create({ title: 'Active' });
       const task = await service.create({ title: 'Will complete' });
@@ -111,11 +127,14 @@ describe('TaskService', () => {
     });
 
     it('should generate next instance for recurring task', async () => {
+      const today = new Date().toISOString().split('T')[0];
+      const expectedNext = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+
       const task = await service.create({
         title: 'Every 7 days',
         description: 'Recurring desc',
         priority: 'high',
-        deadline: '2026-02-16',
+        deadline: today,
         recurrenceRule: { type: 'days_after', interval: 7 },
       });
 
@@ -124,8 +143,8 @@ describe('TaskService', () => {
       expect(result.nextInstance!.title).toBe('Every 7 days');
       expect(result.nextInstance!.description).toBe('Recurring desc');
       expect(result.nextInstance!.priority).toBe('high');
-      expect(result.nextInstance!.deadline).toBe('2026-02-23');
-      expect(result.nextInstance!.notBefore).toBe('2026-02-23');
+      expect(result.nextInstance!.deadline).toBe(expectedNext);
+      expect(result.nextInstance!.notBefore).toBe(expectedNext);
       expect(result.nextInstance!.isCompleted).toBe(false);
       expect(result.nextInstance!.recurrenceGroupId).toBe(task.recurrenceGroupId);
     });

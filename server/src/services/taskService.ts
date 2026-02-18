@@ -75,11 +75,14 @@ export class TaskService {
       }
     }
 
-    // Sort active: deadline ASC (nulls last), then priority
+    // Sort active: due/overdue deadlines first (ASC), then priority
+    // Future deadlines don't get sorting priority - they sort by priority like tasks without deadline
     active.sort((a, b) => {
-      if (a.deadline && b.deadline) return a.deadline.localeCompare(b.deadline);
-      if (a.deadline && !b.deadline) return -1;
-      if (!a.deadline && b.deadline) return 1;
+      const aDue = a.deadline && a.deadline <= today;
+      const bDue = b.deadline && b.deadline <= today;
+      if (aDue && bDue) return a.deadline!.localeCompare(b.deadline!);
+      if (aDue && !bDue) return -1;
+      if (!aDue && bDue) return 1;
       return (PRIORITY_ORDER[a.priority] ?? 1) - (PRIORITY_ORDER[b.priority] ?? 1);
     });
 
