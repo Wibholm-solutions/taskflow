@@ -22,8 +22,8 @@ export function FeedbackButton({
 }: FeedbackButtonProps) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<FeedbackType>("feedback");
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
+  const [shortDesc, setShortDesc] = useState("");
+  const [details, setDetails] = useState("");
   const [honeypot, setHoneypot] = useState("");
   const [status, setStatus] = useState<Status>("idle");
 
@@ -32,8 +32,8 @@ export function FeedbackButton({
 
   function reset() {
     setType("feedback");
-    setTitle("");
-    setDescription("");
+    setShortDesc("");
+    setDetails("");
     setHoneypot("");
     setStatus("idle");
   }
@@ -48,8 +48,8 @@ export function FeedbackButton({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           repo,
-          title,
-          description,
+          title: shortDesc,
+          description: details,
           type,
           _hp: honeypot,
         }),
@@ -123,22 +123,21 @@ export function FeedbackButton({
                 ))}
               </div>
 
-              {/* Title */}
+              {/* Kort beskrivelse */}
               <input
                 type="text"
-                placeholder="Titel"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Kort beskrivelse"
+                value={shortDesc}
+                onChange={(e) => setShortDesc(e.target.value)}
                 required
                 className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-500"
               />
 
-              {/* Description */}
+              {/* Uddybende */}
               <textarea
-                placeholder="Beskriv..."
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                required
+                placeholder="Uddyb gerne..."
+                value={details}
+                onChange={(e) => setDetails(e.target.value)}
                 rows={3}
                 className="resize-none rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-500"
               />
