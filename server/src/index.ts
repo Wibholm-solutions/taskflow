@@ -37,7 +37,7 @@ const taskService = new TaskService(db);
 const app = new Hono();
 
 // Health check
-app.get(`${basePath}/api/health`, (c) => c.json({ status: 'ok' }));
+app.get(`${basePath}/api/health`, (c) => c.json({ status: 'ok', version: new Date().toISOString().slice(0, 10) }));
 
 // Auth middleware for API routes
 app.use(`${basePath}/api/*`, authMiddleware);
