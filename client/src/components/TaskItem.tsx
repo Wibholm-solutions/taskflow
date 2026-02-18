@@ -35,7 +35,7 @@ const PRIORITY_BADGE: Record<string, string> = {
 };
 
 export function TaskItem({ task, onComplete, onDelete, onTap, upcoming }: TaskItemProps) {
-  const { ref, offset } = useSwipe({
+  const { ref, offset, isSwiping } = useSwipe({
     onSwipeRight: () => onComplete(task.id),
     onSwipeLeft: () => onDelete(task.id),
     threshold: 80,
@@ -70,7 +70,7 @@ export function TaskItem({ task, onComplete, onDelete, onTap, upcoming }: TaskIt
       <div
         ref={ref}
         onClick={() => onTap(task)}
-        className={`relative bg-gray-800 border-l-4 ${PRIORITY_BORDER[task.priority] || PRIORITY_BORDER.default} p-3 cursor-pointer transition-transform`}
+        className={`relative bg-gray-800 border-l-4 ${PRIORITY_BORDER[task.priority] || PRIORITY_BORDER.default} p-3 cursor-pointer ${isSwiping ? '' : 'transition-transform'}`}
         style={{ transform: `translateX(${offset}px)` }}
       >
         <div className="flex items-center justify-between">
