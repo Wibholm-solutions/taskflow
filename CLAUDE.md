@@ -5,7 +5,7 @@ Personal task management PWA. Single-user, architected for future multi-user.
 ## Tech Stack
 - **Backend:** Hono (Node.js) + Drizzle ORM + SQLite
 - **Frontend:** React 18 + TailwindCSS 4
-- **Testing:** Vitest
+- **Testing:** Vitest (unit) + Playwright (E2E)
 - **PWA:** Workbox via vite-plugin-pwa
 - **Build:** Vite (client) + esbuild (server)
 
@@ -13,7 +13,9 @@ Personal task management PWA. Single-user, architected for future multi-user.
 ```bash
 npm install
 npm run dev          # Starts both server (3000) and client (5173)
-npm test             # Run all tests
+npm test             # Run unit tests
+npm run test:e2e     # Run E2E tests (builds + starts server)
+npm run test:e2e:ui  # Playwright UI mode
 npm run build        # Build for production
 ```
 
@@ -25,6 +27,12 @@ npm run build        # Build for production
 
 ## Project Structure
 ```
+e2e/
+├── playwright.config.ts  # Playwright config (webServer, baseURL)
+├── fixtures.ts           # Custom test fixture with DB cleanup
+├── helpers/api.ts        # API helper for test data setup
+└── tests/                # E2E test specs
+
 server/src/
 ├── index.ts              # Hono app entry, serves API + static
 ├── routes/tasks.ts       # Task CRUD + complete endpoints

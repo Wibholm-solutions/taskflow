@@ -4,3 +4,6 @@ data/
 .env
 *.db
 *.db-journal
+test-results/
+playwright-report/
+blob-report/
