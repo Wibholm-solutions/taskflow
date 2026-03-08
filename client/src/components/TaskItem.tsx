@@ -85,9 +85,9 @@ export function TaskItem({ task, onComplete, onDelete, onTap, upcoming }: TaskIt
               {task.recurrenceRule && (
                 <span className="text-blue-400">&#x21BB;</span>
               )}
-              {task.priority !== 'default' && (
+              {task.priority === 'low' && (
                 <span className={PRIORITY_BADGE[task.priority] || ''}>
-                  {task.priority === 'high' ? '!' : task.priority}
+                  {task.priority}
                 </span>
               )}
             </div>
