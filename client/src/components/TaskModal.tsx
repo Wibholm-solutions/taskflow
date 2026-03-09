@@ -17,12 +17,31 @@ export function TaskModal({ isOpen, onClose, onSave, onDelete, editTask }: TaskM
   const [deadline, setDeadline] = useState('');
   const [priority, setPriority] = useState<Priority>('default');
   const [showExtra, setShowExtra] = useState(false);
+  const [keyboardOffset, setKeyboardOffset] = useState(0);
 
   const [recurrenceType, setRecurrenceType] = useState<'none' | 'weekdays' | 'days_after' | 'months_after'>('none');
   const [recurrenceDays, setRecurrenceDays] = useState<number[]>([]);
   const [recurrenceInterval, setRecurrenceInterval] = useState(7);
 
   const titleRef = useRef<HTMLInputElement>(null);
+
+  // Adjust modal position when iOS virtual keyboard appears/disappears
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    const handleViewportChange = () => {
+      const offset = window.innerHeight - vv.height - vv.offsetTop;
+      setKeyboardOffset(Math.max(0, offset));
+    };
+
+    vv.addEventListener('resize', handleViewportChange);
+    vv.addEventListener('scroll', handleViewportChange);
+    return () => {
+      vv.removeEventListener('resize', handleViewportChange);
+      vv.removeEventListener('scroll', handleViewportChange);
+    };
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -55,7 +74,6 @@ export function TaskModal({ isOpen, onClose, onSave, onDelete, editTask }: TaskM
         setRecurrenceDays([]);
         setRecurrenceInterval(7);
       }
-      setTimeout(() => titleRef.current?.focus(), 100);
     }
   }, [isOpen, editTask]);
 
@@ -96,12 +114,14 @@ export function TaskModal({ isOpen, onClose, onSave, onDelete, editTask }: TaskM
       {/* Modal */}
       <div
         role="dialog"
-        className="fixed bottom-0 left-0 right-0 z-50 bg-gray-800 rounded-t-2xl p-4 max-w-md mx-auto transform transition-transform"
-        style={{ maxHeight: '85vh', overflowY: 'auto' }}
+        className="fixed left-0 right-0 z-50 bg-gray-800 rounded-t-2xl p-4 max-w-md mx-auto transform transition-transform"
+        style={{ bottom: keyboardOffset, maxHeight: '85vh', overflowY: 'auto' }}
       >
         {/* Title input */}
         <input
           ref={titleRef}
+          // eslint-disable-next-line jsx-a11y/no-autofocus
+          autoFocus
           type="text"
           placeholder="Hvad skal du?"
           value={title}
