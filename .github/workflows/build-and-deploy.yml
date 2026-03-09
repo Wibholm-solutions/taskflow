@@ -79,8 +79,9 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
 
       - name: Trigger deploy on server
+        env:
+          APP_NAME: ${{ github.event.repository.name }}
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
         run: |
-          curl -sf -X POST https://wibholmsolutions.com/api/deploy \
-            -H "Authorization: Bearer ${{ secrets.DEPLOY_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -d '{"app": "${{ github.event.repository.name }}", "sha": "${{ github.sha }}"}'
+          curl -sf -X POST "https://wibholmsolutions.com/deploy-center/api/redeploy/${APP_NAME}" \
+            -u "admin:${DEPLOY_TOKEN}"
