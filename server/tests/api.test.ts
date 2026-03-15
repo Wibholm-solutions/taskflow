@@ -117,6 +117,19 @@ describe('Task API', () => {
       });
       expect(res.status).toBe(400);
     });
+
+    it('should reject whitespace-only subtask titles on create', async () => {
+      const res = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: 'Parent',
+          subtasks: [{ title: '   ' }],
+        }),
+      });
+
+      expect(res.status).toBe(400);
+    });
   });
 
   describe('GET /todo/api/tasks', () => {
@@ -214,6 +227,62 @@ describe('Task API', () => {
         body: JSON.stringify({ title: 'Update' }),
       });
       expect(res.status).toBe(404);
+    });
+
+    it('should reject cross-task subtask ids with a client error', async () => {
+      const firstCreateRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: 'First',
+          subtasks: [{ title: 'Owned subtask' }],
+        }),
+      });
+      const secondCreateRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Second' }),
+      });
+
+      const firstTask = await firstCreateRes.json();
+      const secondTask = await secondCreateRes.json();
+
+      const res = await app.request(`/todo/api/tasks/${secondTask.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subtasks: {
+            update: [{ id: firstTask.subtasks[0].id, title: 'Hijacked' }],
+          },
+        }),
+      });
+
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ error: 'subtask does not belong to task' });
+    });
+
+    it('should reject whitespace-only subtask titles on update', async () => {
+      const createRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: 'Parent',
+          subtasks: [{ title: 'Keep me' }],
+        }),
+      });
+      const created = await createRes.json();
+
+      const res = await app.request(`/todo/api/tasks/${created.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subtasks: {
+            update: [{ id: created.subtasks[0].id, title: '   ' }],
+          },
+        }),
+      });
+
+      expect(res.status).toBe(400);
     });
   });
 

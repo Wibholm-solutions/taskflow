@@ -27,6 +27,7 @@ function validateRecurrenceRule(rule: any): string | null {
 function validateSubtaskInput(subtask: any): string | null {
   if (!isObject(subtask)) return 'invalid subtask';
   if (typeof subtask.title !== 'string') return 'subtask title is required';
+  if (subtask.title.trim().length === 0) return 'subtask title is required';
   if (subtask.isCompleted !== undefined && typeof subtask.isCompleted !== 'boolean') {
     return 'subtask isCompleted must be boolean';
   }
@@ -59,6 +60,9 @@ function validateSubtaskMutations(subtaskMutations: any): string | null {
       if (!isObject(subtask) || typeof subtask.id !== 'string') return 'subtask update id is required';
       if (subtask.title !== undefined && typeof subtask.title !== 'string') {
         return 'subtask title must be a string';
+      }
+      if (subtask.title !== undefined && subtask.title.trim().length === 0) {
+        return 'subtask title is required';
       }
       if (subtask.isCompleted !== undefined && typeof subtask.isCompleted !== 'boolean') {
         return 'subtask isCompleted must be boolean';
@@ -164,6 +168,9 @@ export function createTaskRoutes(service: TaskService) {
       return c.json(task);
     } catch (e: any) {
       if (e.message === 'not found') return c.json({ error: 'not found' }, 404);
+      if (e.message === 'subtask does not belong to task') {
+        return c.json({ error: 'subtask does not belong to task' }, 400);
+      }
       throw e;
     }
   });
