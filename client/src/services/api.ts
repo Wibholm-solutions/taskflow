@@ -2,6 +2,7 @@ import type {
   Task,
   TaskListResponse,
   CreateTaskInput,
+  UpdateTaskInput,
   CompleteResponse,
   CompleteTaskOptions,
 } from '../types';
@@ -30,7 +31,7 @@ export const api = {
       body: JSON.stringify(input),
     }),
 
-  updateTask: (id: string, input: Partial<CreateTaskInput>) =>
+  updateTask: (id: string, input: UpdateTaskInput) =>
     request<Task>(`/tasks/${id}`, {
       method: 'PUT',
       body: JSON.stringify(input),

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../services/api';
-import type { Task, CreateTaskInput } from '../types';
+import type { Task, CreateTaskInput, UpdateTaskInput } from '../types';
 
 interface TaskLocation {
   task: Task | null;
@@ -31,6 +31,10 @@ function restoreTaskInList(tasks: Task[], task: Task, index: number): Task[] {
   const insertIndex = Math.max(0, Math.min(index, next.length));
   next.splice(insertIndex, 0, task);
   return next;
+}
+
+function taskExistsInState(active: Task[], upcoming: Task[], id: string): boolean {
+  return active.some((task) => task.id === id) || upcoming.some((task) => task.id === id);
 }
 
 export function useTasks() {
@@ -66,6 +70,16 @@ export function useTasks() {
       return () => clearTimeout(timer);
     }
   }, [error]);
+
+  useEffect(() => {
+    if (!pendingCompletionTask) {
+      return;
+    }
+
+    if (!taskExistsInState(active, upcoming, pendingCompletionTask.id)) {
+      setPendingCompletionTask(null);
+    }
+  }, [active, upcoming, pendingCompletionTask]);
 
   const completeTaskRequest = useCallback((id: string, confirmRemainingSubtasks = false) => {
     const taskLocation = findTaskLocation(active, upcoming, id);
@@ -125,6 +139,9 @@ export function useTasks() {
     const prevUpcoming = upcoming;
     setActive((prev) => prev.filter((t) => t.id !== id));
     setUpcoming((prev) => prev.filter((t) => t.id !== id));
+    setPendingCompletionTask((current) => (
+      current?.id === id ? null : current
+    ));
 
     api.deleteTask(id).catch((e: any) => {
       setActive(prevActive);
@@ -144,7 +161,7 @@ export function useTasks() {
     }
   }, [refresh]);
 
-  const updateTask = useCallback(async (id: string, input: Partial<CreateTaskInput>) => {
+  const updateTask = useCallback(async (id: string, input: UpdateTaskInput) => {
     const prevActive = active;
     const prevUpcoming = upcoming;
 

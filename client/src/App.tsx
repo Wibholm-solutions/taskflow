@@ -6,7 +6,7 @@ import { TaskModal } from './components/TaskModal';
 import { FloatingAddButton } from './components/FloatingAddButton';
 import { Toast } from './components/Toast';
 import { FeedbackButton } from './components/FeedbackButton';
-import type { Task, CreateTaskInput } from './types';
+import type { Task, CreateTaskInput, UpdateTaskInput } from './types';
 
 export default function App() {
   const {
@@ -40,7 +40,14 @@ export default function App() {
 
   const handleSave = async (input: CreateTaskInput) => {
     if (editingTask) {
-      await updateTask(editingTask.id, input);
+      const updateInput: UpdateTaskInput = {
+        title: input.title,
+        description: input.description,
+        deadline: input.deadline ?? null,
+        priority: input.priority,
+        recurrenceRule: input.recurrenceRule ?? null,
+      };
+      await updateTask(editingTask.id, updateInput);
     } else {
       await createTask(input);
     }

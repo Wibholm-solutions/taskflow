@@ -20,6 +20,18 @@ export interface SubtaskInput {
   isCompleted?: boolean;
 }
 
+export interface UpdateSubtaskInput {
+  id: string;
+  title?: string;
+  isCompleted?: boolean;
+}
+
+export interface SubtaskMutationInput {
+  create?: SubtaskInput[];
+  update?: UpdateSubtaskInput[];
+  delete?: string[];
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -48,6 +60,16 @@ export interface CreateTaskInput {
   priority?: Priority;
   recurrenceRule?: RecurrenceRule;
   subtasks?: SubtaskInput[];
+}
+
+export interface UpdateTaskInput {
+  title?: string;
+  description?: string;
+  deadline?: string | null;
+  priority?: Priority;
+  notBefore?: string | null;
+  recurrenceRule?: RecurrenceRule | null;
+  subtasks?: SubtaskMutationInput;
 }
 
 export interface CompleteTaskOptions {

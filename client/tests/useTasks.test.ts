@@ -51,6 +51,7 @@ describe('useTasks', () => {
   beforeEach(() => {
     vi.mocked(api.listTasks).mockResolvedValue({ active: [], upcoming: [] });
     vi.mocked(api.completeTask).mockReset();
+    vi.mocked(api.deleteTask).mockReset();
   });
 
   it('should fetch tasks on mount', async () => {
@@ -261,5 +262,54 @@ describe('useTasks', () => {
     await waitFor(() => expect(result.current.active).toEqual([taskB]));
     expect(result.current.active).not.toContainEqual(taskC);
     expect(result.current.error).toBe('Network error');
+  });
+
+  it('should clear pending confirmation when the pending task is deleted', async () => {
+    vi.mocked(api.listTasks).mockResolvedValue({ active: [parentTask], upcoming: [] });
+    vi.mocked(api.completeTask).mockRejectedValue(new Error('subtasks_confirmation_required'));
+    vi.mocked(api.deleteTask).mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useTasks());
+    await waitFor(() => expect(result.current.active).toHaveLength(1));
+
+    act(() => {
+      result.current.completeTask(parentTask.id);
+    });
+
+    await waitFor(() => expect(result.current.pendingCompletionTask?.id).toBe(parentTask.id));
+
+    act(() => {
+      result.current.deleteTask(parentTask.id);
+    });
+
+    await waitFor(() => {
+      expect(result.current.active).toEqual([]);
+      expect(result.current.pendingCompletionTask).toBeNull();
+    });
+  });
+
+  it('should clear pending confirmation when refresh removes the pending task', async () => {
+    vi.mocked(api.listTasks)
+      .mockResolvedValueOnce({ active: [parentTask, taskB], upcoming: [] })
+      .mockResolvedValueOnce({ active: [taskB], upcoming: [] });
+    vi.mocked(api.completeTask).mockRejectedValue(new Error('subtasks_confirmation_required'));
+
+    const { result } = renderHook(() => useTasks());
+    await waitFor(() => expect(result.current.active).toHaveLength(2));
+
+    act(() => {
+      result.current.completeTask(parentTask.id);
+    });
+
+    await waitFor(() => expect(result.current.pendingCompletionTask?.id).toBe(parentTask.id));
+
+    await act(async () => {
+      await result.current.refresh();
+    });
+
+    await waitFor(() => {
+      expect(result.current.active).toEqual([taskB]);
+      expect(result.current.pendingCompletionTask).toBeNull();
+    });
   });
 });
