@@ -2,6 +2,37 @@ import { useState, useEffect, useCallback } from 'react';
 import { api } from '../services/api';
 import type { Task, CreateTaskInput } from '../types';
 
+interface TaskLocation {
+  task: Task | null;
+  list: 'active' | 'upcoming' | null;
+  index: number;
+}
+
+function findTaskLocation(active: Task[], upcoming: Task[], id: string): TaskLocation {
+  const activeIndex = active.findIndex((task) => task.id === id);
+  if (activeIndex >= 0) {
+    return { task: active[activeIndex], list: 'active', index: activeIndex };
+  }
+
+  const upcomingIndex = upcoming.findIndex((task) => task.id === id);
+  if (upcomingIndex >= 0) {
+    return { task: upcoming[upcomingIndex], list: 'upcoming', index: upcomingIndex };
+  }
+
+  return { task: null, list: null, index: -1 };
+}
+
+function restoreTaskInList(tasks: Task[], task: Task, index: number): Task[] {
+  if (tasks.some((item) => item.id === task.id)) {
+    return tasks;
+  }
+
+  const next = [...tasks];
+  const insertIndex = Math.max(0, Math.min(index, next.length));
+  next.splice(insertIndex, 0, task);
+  return next;
+}
+
 export function useTasks() {
   const [active, setActive] = useState<Task[]>([]);
   const [upcoming, setUpcoming] = useState<Task[]>([]);
@@ -37,9 +68,8 @@ export function useTasks() {
   }, [error]);
 
   const completeTaskRequest = useCallback((id: string, confirmRemainingSubtasks = false) => {
-    const prevActive = active;
-    const prevUpcoming = upcoming;
-    const task = prevActive.find((item) => item.id === id) ?? prevUpcoming.find((item) => item.id === id) ?? null;
+    const taskLocation = findTaskLocation(active, upcoming, id);
+    const task = taskLocation.task;
 
     setActive((prev) => prev.filter((t) => t.id !== id));
     setUpcoming((prev) => prev.filter((t) => t.id !== id));
@@ -49,18 +79,27 @@ export function useTasks() {
       id,
       confirmRemainingSubtasks ? { completeRemainingSubtasks: true } : undefined,
     ).then(() => {
-      setPendingCompletionTask(null);
+      setPendingCompletionTask((current) => (
+        current?.id === id ? null : current
+      ));
       refresh();
     }).catch((e: any) => {
-      setActive(prevActive);
-      setUpcoming(prevUpcoming);
+      if (taskLocation.list === 'active' && task) {
+        setActive((current) => restoreTaskInList(current, task, taskLocation.index));
+      }
+
+      if (taskLocation.list === 'upcoming' && task) {
+        setUpcoming((current) => restoreTaskInList(current, task, taskLocation.index));
+      }
 
       if (e.message === 'subtasks_confirmation_required' && task) {
         setPendingCompletionTask(task);
         return;
       }
 
-      setPendingCompletionTask(null);
+      setPendingCompletionTask((current) => (
+        current?.id === id ? null : current
+      ));
       setError(e.message);
     });
   }, [active, upcoming, refresh]);

@@ -32,6 +32,21 @@ describe('useTasks', () => {
       },
     ],
   } as any;
+  const taskB = {
+    id: '2',
+    title: 'Task B',
+    description: null,
+    deadline: null,
+    priority: 'default',
+    isCompleted: false,
+    completedAt: null,
+    notBefore: null,
+    recurrenceGroupId: null,
+    recurrenceRule: null,
+    createdAt: '2026-03-15T00:00:00.000Z',
+    updatedAt: '2026-03-15T00:00:00.000Z',
+    subtasks: [],
+  } as any;
 
   beforeEach(() => {
     vi.mocked(api.listTasks).mockResolvedValue({ active: [], upcoming: [] });
@@ -164,5 +179,87 @@ describe('useTasks', () => {
 
     expect(result.current.pendingCompletionTask).toBeNull();
     expect(result.current.active).toEqual([parentTask]);
+  });
+
+  it('should not clear pending confirmation for task A when task B completes successfully', async () => {
+    vi.mocked(api.listTasks)
+      .mockResolvedValueOnce({ active: [parentTask, taskB], upcoming: [] })
+      .mockResolvedValueOnce({ active: [parentTask], upcoming: [] });
+    vi.mocked(api.completeTask)
+      .mockRejectedValueOnce(new Error('subtasks_confirmation_required'))
+      .mockResolvedValueOnce({
+        completed: { ...taskB, isCompleted: true, completedAt: '2026-03-15T01:00:00.000Z' },
+        nextInstance: null,
+        requiresConfirmation: false,
+      } as any);
+
+    const { result } = renderHook(() => useTasks());
+    await waitFor(() => expect(result.current.active).toHaveLength(2));
+
+    act(() => {
+      result.current.completeTask(parentTask.id);
+    });
+
+    await waitFor(() => expect(result.current.pendingCompletionTask?.id).toBe(parentTask.id));
+
+    act(() => {
+      result.current.completeTask(taskB.id);
+    });
+
+    await waitFor(() => expect(result.current.active).toEqual([parentTask]));
+    expect(result.current.pendingCompletionTask).toEqual(parentTask);
+  });
+
+  it('should restore only the affected task on completion failure instead of stale list snapshots', async () => {
+    const taskC = {
+      id: '3',
+      title: 'Task C',
+      description: null,
+      deadline: null,
+      priority: 'default',
+      isCompleted: false,
+      completedAt: null,
+      notBefore: null,
+      recurrenceGroupId: null,
+      recurrenceRule: null,
+      createdAt: '2026-03-15T00:00:00.000Z',
+      updatedAt: '2026-03-15T00:00:00.000Z',
+      subtasks: [],
+    } as any;
+
+    let rejectTaskB!: (error: Error) => void;
+    vi.mocked(api.listTasks)
+      .mockResolvedValueOnce({ active: [taskB, taskC], upcoming: [] })
+      .mockResolvedValueOnce({ active: [taskB], upcoming: [] });
+    vi.mocked(api.completeTask)
+      .mockImplementationOnce(() => new Promise((_, reject) => { rejectTaskB = reject; }))
+      .mockResolvedValueOnce({
+        completed: { ...taskC, isCompleted: true, completedAt: '2026-03-15T01:00:00.000Z' },
+        nextInstance: null,
+        requiresConfirmation: false,
+      } as any);
+
+    const { result } = renderHook(() => useTasks());
+    await waitFor(() => expect(result.current.active).toHaveLength(2));
+
+    act(() => {
+      result.current.completeTask(taskB.id);
+    });
+
+    await waitFor(() => expect(result.current.active).toEqual([taskC]));
+
+    act(() => {
+      result.current.completeTask(taskC.id);
+    });
+
+    await waitFor(() => expect(result.current.active).toHaveLength(0));
+
+    act(() => {
+      rejectTaskB(new Error('Network error'));
+    });
+
+    await waitFor(() => expect(result.current.active).toEqual([taskB]));
+    expect(result.current.active).not.toContainEqual(taskC);
+    expect(result.current.error).toBe('Network error');
   });
 });
