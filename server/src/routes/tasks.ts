@@ -123,14 +123,14 @@ function validateCompleteInput(body: any): string | null {
   return null;
 }
 
-async function readOptionalJsonBody(c: any): Promise<Record<string, any>> {
+async function readOptionalJsonBody(c: any): Promise<Record<string, any> | null> {
   const contentLength = c.req.header('content-length');
   const contentType = c.req.header('content-type') ?? '';
   if (contentLength === '0') return {};
   if (!contentType.includes('application/json')) return {};
 
   const body = await c.req.json();
-  return isObject(body) ? body : {};
+  return isObject(body) ? body : null;
 }
 
 export function createTaskRoutes(service: TaskService) {
@@ -175,6 +175,7 @@ export function createTaskRoutes(service: TaskService) {
 
   routes.post('/tasks/:id/complete', async (c) => {
     const body = await readOptionalJsonBody(c);
+    if (body === null) return c.json({ error: 'invalid request body' }, 400);
     const validationError = validateCompleteInput(body);
     if (validationError) return c.json({ error: validationError }, 400);
 

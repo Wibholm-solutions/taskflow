@@ -218,6 +218,27 @@ describe('Task API', () => {
   });
 
   describe('POST /todo/api/tasks/:id/complete', () => {
+    it('should reject non-object JSON bodies', async () => {
+      const createRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: 'Parent',
+          subtasks: [{ title: 'Open subtask' }],
+        }),
+      });
+      const { id } = await createRes.json();
+
+      const res = await app.request(`/todo/api/tasks/${id}/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify([]),
+      });
+
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ error: 'invalid request body' });
+    });
+
     it('should require confirmation when open subtasks remain', async () => {
       const createRes = await app.request('/todo/api/tasks', {
         method: 'POST',
