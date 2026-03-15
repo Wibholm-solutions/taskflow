@@ -52,10 +52,6 @@ function normalizeSubtaskTitle(title: string): string {
   return title.trim();
 }
 
-function isMissingSubtasksTableError(error: unknown): boolean {
-  return error instanceof Error && error.message.includes('no such table: subtasks');
-}
-
 function buildSubtaskInsert(taskId: string, input: SubtaskInput, now: string) {
   const title = normalizeSubtaskTitle(input.title);
   if (!title) return null;
@@ -75,16 +71,11 @@ function buildSubtaskInsert(taskId: string, input: SubtaskInput, now: string) {
 async function listSubtasks(db: any, taskIds: string[]): Promise<SubtaskRow[]> {
   if (taskIds.length === 0) return [];
 
-  try {
-    return await db
-      .select()
-      .from(subtasks)
-      .where(inArray(subtasks.taskId, taskIds))
-      .orderBy(asc(subtasks.createdAt), asc(subtasks.id));
-  } catch (error) {
-    if (isMissingSubtasksTableError(error)) return [];
-    throw error;
-  }
+  return db
+    .select()
+    .from(subtasks)
+    .where(inArray(subtasks.taskId, taskIds))
+    .orderBy(asc(subtasks.createdAt), asc(subtasks.id));
 }
 
 async function getTaskAggregate(db: any, id: string): Promise<TaskResponse | null> {
@@ -264,11 +255,7 @@ export class TaskService {
 
   async delete(id: string): Promise<void> {
     this.db.transaction((tx: any) => {
-      try {
-        tx.delete(subtasks).where(eq(subtasks.taskId, id)).run();
-      } catch (error) {
-        if (!isMissingSubtasksTableError(error)) throw error;
-      }
+      tx.delete(subtasks).where(eq(subtasks.taskId, id)).run();
       tx.delete(tasks).where(eq(tasks.id, id)).run();
     });
   }
@@ -278,7 +265,7 @@ export class TaskService {
     if (!existing) throw new Error('not found');
 
     const openSubtasks = existing.subtasks.filter((subtask) => !subtask.isCompleted);
-    if (openSubtasks.length > 0 && !options.completeSubtasks) {
+    if (openSubtasks.length > 0 && !options.completeRemainingSubtasks) {
       return {
         completed: null,
         nextInstance: null,

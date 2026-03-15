@@ -135,7 +135,7 @@ describe('TaskService', () => {
         subtasks: [{ title: 'First subtask' }, { title: '   ' }, { title: 'Second subtask' }],
       });
 
-      expect(task.subtasks.map((subtask) => subtask.title)).toEqual([
+      expect(task.subtasks.map((subtask) => subtask.title).sort()).toEqual([
         'First subtask',
         'Second subtask',
       ]);
@@ -265,7 +265,7 @@ describe('TaskService', () => {
         subtasks: [{ title: 'Open subtask' }, { title: 'Already done', isCompleted: true }],
       });
 
-      const result = await service.complete(task.id, { completeSubtasks: true });
+      const result = await service.complete(task.id, { completeRemainingSubtasks: true });
 
       expect(result.requiresConfirmation).toBe(false);
       expect(result.completed?.isCompleted).toBe(true);

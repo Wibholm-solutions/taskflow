@@ -43,7 +43,7 @@ export interface UpdateTaskInput {
 }
 
 export interface CompleteTaskOptions {
-  completeSubtasks?: boolean;
+  completeRemainingSubtasks?: boolean;
 }
 
 export interface SubtaskResponse {
