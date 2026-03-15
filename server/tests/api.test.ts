@@ -130,6 +130,29 @@ describe('Task API', () => {
 
       expect(res.status).toBe(400);
     });
+
+    it('should reject malformed JSON on create', async () => {
+      const res = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{"title":',
+      });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('should reject invalid notBefore on create', async () => {
+      const res = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: 'Parent',
+          notBefore: 'not-a-date',
+        }),
+      });
+
+      expect(res.status).toBe(400);
+    });
   });
 
   describe('GET /todo/api/tasks', () => {
@@ -284,9 +307,44 @@ describe('Task API', () => {
 
       expect(res.status).toBe(400);
     });
+
+    it('should reject malformed JSON on update', async () => {
+      const createRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Parent' }),
+      });
+      const created = await createRes.json();
+
+      const res = await app.request(`/todo/api/tasks/${created.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{"title":',
+      });
+
+      expect(res.status).toBe(400);
+    });
   });
 
   describe('POST /todo/api/tasks/:id/complete', () => {
+    it('should tolerate an empty JSON body on complete', async () => {
+      const createRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'One-time task' }),
+      });
+      const { id } = await createRes.json();
+
+      const res = await app.request(`/todo/api/tasks/${id}/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.completed.isCompleted).toBe(true);
+    });
+
     it('should reject non-object JSON bodies', async () => {
       const createRes = await app.request('/todo/api/tasks', {
         method: 'POST',
@@ -306,6 +364,23 @@ describe('Task API', () => {
 
       expect(res.status).toBe(400);
       expect(await res.json()).toEqual({ error: 'invalid request body' });
+    });
+
+    it('should reject malformed JSON on complete', async () => {
+      const createRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Parent' }),
+      });
+      const { id } = await createRes.json();
+
+      const res = await app.request(`/todo/api/tasks/${id}/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{"completeRemainingSubtasks":',
+      });
+
+      expect(res.status).toBe(400);
     });
 
     it('should require confirmation when open subtasks remain', async () => {

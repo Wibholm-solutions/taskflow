@@ -86,6 +86,9 @@ function validateCreateInput(body: any): string | null {
   if (body.title.length > 200) return 'title must be 200 chars or less';
   if (body.priority && !VALID_PRIORITIES.includes(body.priority)) return 'invalid priority';
   if (body.deadline && isNaN(Date.parse(body.deadline))) return 'invalid deadline date';
+  if (body.notBefore !== undefined && body.notBefore !== null && isNaN(Date.parse(body.notBefore))) {
+    return 'invalid notBefore date';
+  }
   if (body.recurrenceRule) {
     const error = validateRecurrenceRule(body.recurrenceRule);
     if (error) return error;
@@ -127,14 +130,32 @@ function validateCompleteInput(body: any): string | null {
   return null;
 }
 
-async function readOptionalJsonBody(c: any): Promise<Record<string, any> | null> {
-  const contentLength = c.req.header('content-length');
+async function readJsonBody(
+  c: any,
+  options: { optional: boolean }
+): Promise<{ body: Record<string, any> | null; error: string | null }> {
   const contentType = c.req.header('content-type') ?? '';
-  if (contentLength === '0') return {};
-  if (!contentType.includes('application/json')) return {};
+  if (!contentType.includes('application/json')) {
+    return options.optional ? { body: {}, error: null } : { body: null, error: 'invalid request body' };
+  }
 
-  const body = await c.req.json();
-  return isObject(body) ? body : null;
+  let rawBody = '';
+  try {
+    rawBody = await c.req.raw.text();
+  } catch {
+    return { body: null, error: 'invalid request body' };
+  }
+
+  if (rawBody.trim() === '') {
+    return options.optional ? { body: {}, error: null } : { body: null, error: 'invalid request body' };
+  }
+
+  try {
+    const parsed = JSON.parse(rawBody);
+    return { body: isObject(parsed) ? parsed : null, error: null };
+  } catch {
+    return { body: null, error: 'invalid request body' };
+  }
 }
 
 export function createTaskRoutes(service: TaskService) {
@@ -146,10 +167,13 @@ export function createTaskRoutes(service: TaskService) {
   });
 
   routes.post('/tasks', async (c) => {
-    const body = await c.req.json();
-    const error = validateCreateInput(body);
-    if (error) return c.json({ error }, 400);
-    const task = await service.create(body);
+    const parsed = await readJsonBody(c, { optional: false });
+    if (parsed.error || parsed.body === null) {
+      return c.json({ error: parsed.error ?? 'invalid request body' }, 400);
+    }
+    const validationError = validateCreateInput(parsed.body);
+    if (validationError) return c.json({ error: validationError }, 400);
+    const task = await service.create(parsed.body);
     return c.json(task, 201);
   });
 
@@ -160,11 +184,14 @@ export function createTaskRoutes(service: TaskService) {
   });
 
   routes.put('/tasks/:id', async (c) => {
-    const body = await c.req.json();
-    const error = validateUpdateInput(body);
-    if (error) return c.json({ error }, 400);
+    const parsed = await readJsonBody(c, { optional: false });
+    if (parsed.error || parsed.body === null) {
+      return c.json({ error: parsed.error ?? 'invalid request body' }, 400);
+    }
+    const validationError = validateUpdateInput(parsed.body);
+    if (validationError) return c.json({ error: validationError }, 400);
     try {
-      const task = await service.update(c.req.param('id'), body);
+      const task = await service.update(c.req.param('id'), parsed.body);
       return c.json(task);
     } catch (e: any) {
       if (e.message === 'not found') return c.json({ error: 'not found' }, 404);
@@ -181,8 +208,11 @@ export function createTaskRoutes(service: TaskService) {
   });
 
   routes.post('/tasks/:id/complete', async (c) => {
-    const body = await readOptionalJsonBody(c);
-    if (body === null) return c.json({ error: 'invalid request body' }, 400);
+    const parsed = await readJsonBody(c, { optional: true });
+    if (parsed.error || parsed.body === null) {
+      return c.json({ error: parsed.error ?? 'invalid request body' }, 400);
+    }
+    const body = parsed.body;
     const validationError = validateCompleteInput(body);
     if (validationError) return c.json({ error: validationError }, 400);
 
