@@ -62,6 +62,10 @@ export interface CreateTaskInput {
   subtasks?: SubtaskInput[];
 }
 
+export interface TaskFormInput extends Omit<CreateTaskInput, 'subtasks'> {
+  subtasks?: SubtaskInput[] | SubtaskMutationInput;
+}
+
 export interface UpdateTaskInput {
   title?: string;
   description?: string;

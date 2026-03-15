@@ -6,7 +6,7 @@ import { TaskModal } from './components/TaskModal';
 import { FloatingAddButton } from './components/FloatingAddButton';
 import { Toast } from './components/Toast';
 import { FeedbackButton } from './components/FeedbackButton';
-import type { Task, CreateTaskInput, UpdateTaskInput } from './types';
+import type { Task, TaskFormInput, UpdateTaskInput } from './types';
 
 export default function App() {
   const {
@@ -38,7 +38,7 @@ export default function App() {
     setModalOpen(true);
   };
 
-  const handleSave = async (input: CreateTaskInput) => {
+  const handleSave = async (input: TaskFormInput) => {
     if (editingTask) {
       const updateInput: UpdateTaskInput = {
         title: input.title,
@@ -46,10 +46,14 @@ export default function App() {
         deadline: input.deadline ?? null,
         priority: input.priority,
         recurrenceRule: input.recurrenceRule ?? null,
+        subtasks: Array.isArray(input.subtasks) ? undefined : input.subtasks,
       };
       await updateTask(editingTask.id, updateInput);
     } else {
-      await createTask(input);
+      await createTask({
+        ...input,
+        subtasks: Array.isArray(input.subtasks) ? input.subtasks : undefined,
+      });
     }
     setModalOpen(false);
     setEditingTask(null);
