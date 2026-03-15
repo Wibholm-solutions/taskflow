@@ -7,6 +7,7 @@ export function useTasks() {
   const [upcoming, setUpcoming] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pendingCompletionTask, setPendingCompletionTask] = useState<Task | null>(null);
 
   const clearError = useCallback(() => setError(null), []);
 
@@ -35,22 +36,50 @@ export function useTasks() {
     }
   }, [error]);
 
-  const completeTask = useCallback((id: string) => {
-    // Optimistic: remove from active/upcoming
+  const completeTaskRequest = useCallback((id: string, confirmRemainingSubtasks = false) => {
     const prevActive = active;
     const prevUpcoming = upcoming;
+    const task = prevActive.find((item) => item.id === id) ?? prevUpcoming.find((item) => item.id === id) ?? null;
+
     setActive((prev) => prev.filter((t) => t.id !== id));
     setUpcoming((prev) => prev.filter((t) => t.id !== id));
+    setError(null);
 
-    api.completeTask(id).then(() => {
+    api.completeTask(
+      id,
+      confirmRemainingSubtasks ? { completeRemainingSubtasks: true } : undefined,
+    ).then(() => {
+      setPendingCompletionTask(null);
       refresh();
     }).catch((e: any) => {
-      // Rollback
       setActive(prevActive);
       setUpcoming(prevUpcoming);
+
+      if (e.message === 'subtasks_confirmation_required' && task) {
+        setPendingCompletionTask(task);
+        return;
+      }
+
+      setPendingCompletionTask(null);
       setError(e.message);
     });
   }, [active, upcoming, refresh]);
+
+  const completeTask = useCallback((id: string) => {
+    completeTaskRequest(id);
+  }, [completeTaskRequest]);
+
+  const confirmPendingCompletion = useCallback(() => {
+    if (!pendingCompletionTask) {
+      return;
+    }
+
+    completeTaskRequest(pendingCompletionTask.id, true);
+  }, [completeTaskRequest, pendingCompletionTask]);
+
+  const cancelPendingCompletion = useCallback(() => {
+    setPendingCompletionTask(null);
+  }, []);
 
   const deleteTask = useCallback((id: string) => {
     const prevActive = active;
@@ -101,6 +130,9 @@ export function useTasks() {
     clearError,
     refresh,
     completeTask,
+    pendingCompletionTask,
+    confirmPendingCompletion,
+    cancelPendingCompletion,
     deleteTask,
     createTask,
     updateTask,
