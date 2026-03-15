@@ -177,6 +177,40 @@ describe('TaskModal', () => {
     );
   });
 
+  it('blocks save when an existing subtask title is cleared to blank', () => {
+    const onSave = vi.fn();
+
+    render(
+      <TaskModal
+        isOpen={true}
+        onClose={() => {}}
+        onSave={onSave}
+        editTask={{
+          ...baseTask,
+          subtasks: [
+            {
+              id: 'subtask-1',
+              taskId: 'task-1',
+              title: 'Must stay named',
+              isCompleted: false,
+              completedAt: null,
+              createdAt: '2026-03-01T00:00:00.000Z',
+              updatedAt: '2026-03-01T00:00:00.000Z',
+            },
+          ],
+        }}
+      />
+    );
+
+    fireEvent.change(screen.getByDisplayValue('Must stay named'), {
+      target: { value: '   ' },
+    });
+    fireEvent.click(screen.getByText('Gem'));
+
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog')).toBeTruthy();
+  });
+
   it('shows subtask overview progress on task cards', () => {
     render(
       <TaskItem

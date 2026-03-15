@@ -118,6 +118,7 @@ export function TaskModal({ isOpen, onClose, onSave, onDelete, editTask }: TaskM
 
   const handleSave = () => {
     if (!title.trim()) return;
+    if (editTask && subtasks.some((subtask) => subtask.id && !subtask.title.trim())) return;
 
     let recurrenceRule: RecurrenceRule | undefined;
     if (recurrenceType === 'weekdays' && recurrenceDays.length > 0) {
