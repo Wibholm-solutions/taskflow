@@ -5,6 +5,23 @@ export type RecurrenceRule =
   | { type: 'days_after'; interval: number }
   | { type: 'months_after'; interval: number };
 
+export interface SubtaskInput {
+  title: string;
+  isCompleted?: boolean;
+}
+
+export interface UpdateSubtaskInput {
+  id: string;
+  title?: string;
+  isCompleted?: boolean;
+}
+
+export interface SubtaskMutationInput {
+  create?: SubtaskInput[];
+  update?: UpdateSubtaskInput[];
+  delete?: string[];
+}
+
 export interface CreateTaskInput {
   title: string;
   description?: string;
@@ -12,6 +29,7 @@ export interface CreateTaskInput {
   priority?: Priority;
   notBefore?: string;
   recurrenceRule?: RecurrenceRule;
+  subtasks?: SubtaskInput[];
 }
 
 export interface UpdateTaskInput {
@@ -21,6 +39,21 @@ export interface UpdateTaskInput {
   priority?: Priority;
   notBefore?: string | null;
   recurrenceRule?: RecurrenceRule | null;
+  subtasks?: SubtaskMutationInput;
+}
+
+export interface CompleteTaskOptions {
+  completeSubtasks?: boolean;
+}
+
+export interface SubtaskResponse {
+  id: string;
+  taskId: string;
+  title: string;
+  isCompleted: boolean;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface TaskResponse {
@@ -36,4 +69,11 @@ export interface TaskResponse {
   recurrenceRule: RecurrenceRule | null;
   createdAt: string;
   updatedAt: string;
+  subtasks: SubtaskResponse[];
+}
+
+export interface CompleteTaskResult {
+  completed: TaskResponse | null;
+  nextInstance: TaskResponse | null;
+  requiresConfirmation: boolean;
 }
