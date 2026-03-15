@@ -5,12 +5,20 @@ export interface CreateTaskData {
   description?: string;
   deadline?: string;
   priority?: 'high' | 'default' | 'low';
+  subtasks?: Array<{
+    title: string;
+    isCompleted?: boolean;
+  }>;
   notBefore?: string;
   recurrenceRule?: {
     type: 'weekdays' | 'days_after' | 'months_after';
     days?: number[];
     interval?: number;
   };
+}
+
+interface CompleteTaskOptions {
+  completeRemainingSubtasks?: boolean;
 }
 
 export class ApiHelper {
@@ -28,8 +36,10 @@ export class ApiHelper {
     return res.json();
   }
 
-  async completeTask(id: string) {
-    const res = await this.request.post(`/todo/api/tasks/${id}/complete`);
+  async completeTask(id: string, options?: CompleteTaskOptions) {
+    const res = await this.request.post(`/todo/api/tasks/${id}/complete`, {
+      data: options?.completeRemainingSubtasks ? options : undefined,
+    });
     if (!res.ok()) throw new Error(`completeTask failed: ${res.status()}`);
     return res.json();
   }

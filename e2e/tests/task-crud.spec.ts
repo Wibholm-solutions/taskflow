@@ -96,4 +96,46 @@ test.describe('Task CRUD', () => {
     await expect(page.getByRole('dialog')).not.toBeVisible();
     await expect(page.getByText('Skal ikke gemmes')).not.toBeVisible();
   });
+
+  test('create, edit, and complete a parent task with subtasks', async ({ page, apiHelper }) => {
+    await page.goto('/todo');
+
+    await page.getByLabel('Opret opgave').click();
+    await page.getByPlaceholder('Hvad skal du?').fill('Plan weekendtur');
+    await page.getByRole('button', { name: 'Tilføj underopgave' }).click();
+    await page.getByPlaceholder('Ny underopgave').nth(0).fill('Pak tøj');
+    await page.getByRole('button', { name: 'Tilføj underopgave' }).click();
+    await page.getByPlaceholder('Ny underopgave').nth(1).fill('Book hotel');
+    await page.getByRole('button', { name: 'Gem' }).click();
+
+    await expect(page.getByText('Plan weekendtur')).toBeVisible();
+    await expect(page.getByText('0/2')).toBeVisible();
+
+    const createdTask = (await apiHelper.getTasks()).active.find((task: any) => task.title === 'Plan weekendtur');
+    expect(createdTask).toBeTruthy();
+
+    await page.getByText('Plan weekendtur').click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await page.locator('input[value="Pak tøj"]').fill('Pak varmt tøj');
+    await page.getByLabel('Mark "Book hotel" as completed').check();
+    await page.getByRole('button', { name: 'Tilføj underopgave' }).click();
+    await page.getByPlaceholder('Ny underopgave').fill('Køb snacks');
+    await page.getByRole('button', { name: 'Gem' }).click();
+
+    await expect(page.getByText('1/3')).toBeVisible();
+
+    await page.getByText('Plan weekendtur').click();
+    await expect(page.locator('input[value="Pak varmt tøj"]')).toBeVisible();
+    await expect(page.getByLabel('Mark "Book hotel" as completed')).toBeChecked();
+    await expect(page.locator('input[value="Køb snacks"]')).toBeVisible();
+    await page.getByRole('button', { name: 'Annuller' }).click();
+
+    await expect(apiHelper.completeTask(createdTask.id)).rejects.toThrow('completeTask failed: 409');
+    await page.reload();
+    await expect(page.getByText('Plan weekendtur')).toBeVisible();
+
+    await apiHelper.completeTask(createdTask.id, { completeRemainingSubtasks: true });
+    await page.reload();
+    await expect(page.getByText('Plan weekendtur')).not.toBeVisible();
+  });
 });
