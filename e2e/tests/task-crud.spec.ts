@@ -1,4 +1,37 @@
+import type { Page } from '@playwright/test';
 import { test, expect } from '../fixtures';
+
+async function swipeTaskToComplete(page: Page, title: string) {
+  await page.locator('[data-priority]').filter({ hasText: title }).first().evaluate((taskCard) => {
+    const interactive = taskCard.querySelector('.cursor-pointer');
+    if (!interactive) {
+      throw new Error('task card not swipeable');
+    }
+
+    const rect = interactive.getBoundingClientRect();
+    const startX = rect.left + 24;
+    const endX = startX + 140;
+    const y = rect.top + rect.height / 2;
+
+    const dispatchTouch = (type: 'touchstart' | 'touchmove' | 'touchend', x: number) => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      const touches = type === 'touchend' ? [] : [{ clientX: x, clientY: y }];
+      Object.defineProperty(event, 'touches', { value: touches });
+      Object.defineProperty(event, 'changedTouches', {
+        value: touches.length > 0 ? touches : [{ clientX: x, clientY: y }],
+      });
+      interactive.dispatchEvent(event);
+    };
+
+    dispatchTouch('touchstart', startX);
+    dispatchTouch('touchmove', endX);
+    dispatchTouch('touchend', endX);
+  });
+}
+
+function taskTitle(page: Page, title: string) {
+  return page.getByText(title, { exact: true });
+}
 
 test.describe('Task CRUD', () => {
   test('create a new task via modal', async ({ page }) => {
@@ -108,7 +141,7 @@ test.describe('Task CRUD', () => {
     await page.getByPlaceholder('Ny underopgave').nth(1).fill('Book hotel');
     await page.getByRole('button', { name: 'Gem' }).click();
 
-    await expect(page.getByText('Plan weekendtur')).toBeVisible();
+    await expect(taskTitle(page, 'Plan weekendtur')).toBeVisible();
     await expect(page.getByText('0/2')).toBeVisible();
 
     const createdTask = (await apiHelper.getTasks()).active.find((task: any) => task.title === 'Plan weekendtur');
@@ -130,12 +163,21 @@ test.describe('Task CRUD', () => {
     await expect(page.locator('input[value="Køb snacks"]')).toBeVisible();
     await page.getByRole('button', { name: 'Annuller' }).click();
 
-    await expect(apiHelper.completeTask(createdTask.id)).rejects.toThrow('completeTask failed: 409');
-    await page.reload();
-    await expect(page.getByText('Plan weekendtur')).toBeVisible();
+    await swipeTaskToComplete(page, 'Plan weekendtur');
+    await expect(
+      page.getByText('"Plan weekendtur" has unfinished subtasks.')
+    ).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Complete all' })).toBeVisible();
+    await expect(taskTitle(page, 'Plan weekendtur')).toBeVisible();
 
-    await apiHelper.completeTask(createdTask.id, { completeRemainingSubtasks: true });
-    await page.reload();
-    await expect(page.getByText('Plan weekendtur')).not.toBeVisible();
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    await expect(
+      page.getByText('"Plan weekendtur" has unfinished subtasks.')
+    ).not.toBeVisible();
+    await expect(taskTitle(page, 'Plan weekendtur')).toBeVisible();
+
+    await swipeTaskToComplete(page, 'Plan weekendtur');
+    await page.getByRole('button', { name: 'Complete all' }).click();
+    await expect(taskTitle(page, 'Plan weekendtur')).not.toBeVisible();
   });
 });

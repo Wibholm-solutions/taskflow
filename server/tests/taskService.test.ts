@@ -242,6 +242,57 @@ describe('TaskService', () => {
       expect(result.nextInstance!.notBefore).toBeTruthy();
     });
 
+    it('should preserve subtasks when generating a new recurring instance', async () => {
+      const task = await service.create({
+        title: 'Recurring parent',
+        recurrenceRule: { type: 'days_after', interval: 7 },
+        subtasks: [{ title: 'Pack bags' }, { title: 'Charge camera' }],
+      });
+
+      const result = await service.complete(task.id, { completeRemainingSubtasks: true });
+
+      expect(result.nextInstance?.subtasks.map((subtask) => subtask.title)).toEqual([
+        'Pack bags',
+        'Charge camera',
+      ]);
+      expect(result.nextInstance?.subtasks.every((subtask) => subtask.isCompleted === false)).toBe(
+        true
+      );
+    });
+
+    it('should preserve subtasks when reusing an existing recurring instance', async () => {
+      const task = await service.create({
+        title: 'Recurring parent',
+        recurrenceRule: { type: 'days_after', interval: 7 },
+        subtasks: [{ title: 'Draft agenda' }, { title: 'Book room' }],
+      });
+
+      const first = await service.complete(task.id, { completeRemainingSubtasks: true });
+      expect(first.nextInstance?.subtasks.map((subtask) => subtask.title)).toEqual([
+        'Draft agenda',
+        'Book room',
+      ]);
+
+      const updatedNext = await service.update(first.nextInstance!.id, {
+        subtasks: {
+          update: [{ id: first.nextInstance!.subtasks[0].id, isCompleted: true }],
+        },
+      });
+      expect(updatedNext.subtasks[0].isCompleted).toBe(true);
+
+      const second = await service.complete(first.nextInstance!.id, {
+        completeRemainingSubtasks: true,
+      });
+
+      expect(second.nextInstance?.subtasks.map((subtask) => subtask.title)).toEqual([
+        'Draft agenda',
+        'Book room',
+      ]);
+      expect(second.nextInstance?.subtasks.every((subtask) => subtask.isCompleted === false)).toBe(
+        true
+      );
+    });
+
     it('should require confirmation before completing a parent with open subtasks', async () => {
       const task = await service.create({
         title: 'Parent',

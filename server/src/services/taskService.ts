@@ -80,6 +80,21 @@ function buildSubtaskInserts(taskId: string, inputs: SubtaskInput[] | undefined,
     .filter((subtask): subtask is NonNullable<typeof subtask> => subtask !== null);
 }
 
+function buildRecurringSubtaskInserts(
+  taskId: string,
+  existingSubtasks: TaskResponse['subtasks'],
+  now: string
+) {
+  return buildSubtaskInserts(
+    taskId,
+    existingSubtasks.map((subtask) => ({
+      title: subtask.title,
+      isCompleted: false,
+    })),
+    now
+  );
+}
+
 async function listSubtasks(db: any, taskIds: string[]): Promise<SubtaskRow[]> {
   if (taskIds.length === 0) return [];
 
@@ -317,6 +332,18 @@ export class TaskService {
           })
           .where(eq(tasks.id, existingInstances[0].id))
           .run();
+
+        tx.delete(subtasks).where(eq(subtasks.taskId, existingInstances[0].id)).run();
+        const recurringSubtasks = buildRecurringSubtaskInserts(
+          existingInstances[0].id,
+          existing.subtasks,
+          now
+        );
+        if (recurringSubtasks.length > 0) {
+          tx.insert(subtasks)
+            .values(recurringSubtasks)
+            .run();
+        }
         return;
       }
 
@@ -333,6 +360,11 @@ export class TaskService {
         createdAt: now,
         updatedAt: now,
       }).run();
+
+      const recurringSubtasks = buildRecurringSubtaskInserts(nextInstanceId, existing.subtasks, now);
+      if (recurringSubtasks.length > 0) {
+        tx.insert(subtasks).values(recurringSubtasks).run();
+      }
     });
 
     return {
