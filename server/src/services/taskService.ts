@@ -68,6 +68,18 @@ function buildSubtaskInsert(taskId: string, input: SubtaskInput, now: string) {
   };
 }
 
+function buildSubtaskInserts(taskId: string, inputs: SubtaskInput[] | undefined, now: string) {
+  if (!inputs || inputs.length === 0) return [];
+
+  const baseTime = new Date(now).getTime();
+  return inputs
+    .map((subtask, index) => {
+      const subtaskTimestamp = new Date(baseTime + index).toISOString();
+      return buildSubtaskInsert(taskId, subtask, subtaskTimestamp);
+    })
+    .filter((subtask): subtask is NonNullable<typeof subtask> => subtask !== null);
+}
+
 async function listSubtasks(db: any, taskIds: string[]): Promise<SubtaskRow[]> {
   if (taskIds.length === 0) return [];
 
@@ -127,10 +139,7 @@ export class TaskService {
         updatedAt: now,
       }).run();
 
-      const newSubtasks =
-        input.subtasks
-          ?.map((subtask) => buildSubtaskInsert(id, subtask, now))
-          .filter((subtask): subtask is NonNullable<typeof subtask> => subtask !== null) ?? [];
+      const newSubtasks = buildSubtaskInserts(id, input.subtasks, now);
 
       if (newSubtasks.length > 0) {
         tx.insert(subtasks).values(newSubtasks).run();
@@ -236,10 +245,7 @@ export class TaskService {
         tx.update(subtasks).set(subtaskUpdates).where(eq(subtasks.id, subtask.id)).run();
       }
 
-      const newSubtasks =
-        input.subtasks.create
-          ?.map((subtask) => buildSubtaskInsert(id, subtask, now))
-          .filter((subtask): subtask is NonNullable<typeof subtask> => subtask !== null) ?? [];
+      const newSubtasks = buildSubtaskInserts(id, input.subtasks.create, now);
 
       if (newSubtasks.length > 0) {
         tx.insert(subtasks).values(newSubtasks).run();

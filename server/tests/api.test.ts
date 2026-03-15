@@ -70,6 +70,27 @@ describe('Task API', () => {
       expect(body.id).toBeTruthy();
     });
 
+    it('should create a task with subtasks and return the aggregate payload', async () => {
+      const res = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: 'Parent task',
+          subtasks: [{ title: 'First subtask' }, { title: 'Second subtask' }],
+        }),
+      });
+
+      expect(res.status).toBe(201);
+      const body = await res.json();
+      expect(body.title).toBe('Parent task');
+      expect(body.subtasks).toHaveLength(2);
+      expect(body.subtasks.map((subtask: any) => subtask.title)).toEqual([
+        'First subtask',
+        'Second subtask',
+      ]);
+      expect(body.subtasks.every((subtask: any) => subtask.taskId === body.id)).toBe(true);
+    });
+
     it('should reject missing title', async () => {
       const res = await app.request('/todo/api/tasks', {
         method: 'POST',
@@ -108,6 +129,30 @@ describe('Task API', () => {
     });
   });
 
+  describe('GET /todo/api/tasks/:id', () => {
+    it('should return a task aggregate with subtasks', async () => {
+      const createRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: 'Parent task',
+          subtasks: [{ title: 'First subtask' }, { title: 'Second subtask' }],
+        }),
+      });
+      const created = await createRes.json();
+
+      const res = await app.request(`/todo/api/tasks/${created.id}`);
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.id).toBe(created.id);
+      expect(body.subtasks.map((subtask: any) => subtask.title)).toEqual([
+        'First subtask',
+        'Second subtask',
+      ]);
+    });
+  });
+
   describe('PUT /todo/api/tasks/:id', () => {
     it('should update a task', async () => {
       const createRes = await app.request('/todo/api/tasks', {
@@ -127,6 +172,41 @@ describe('Task API', () => {
       expect(body.title).toBe('Updated');
     });
 
+    it('should update task aggregates and return subtasks', async () => {
+      const createRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: 'Original',
+          subtasks: [{ title: 'Keep me' }, { title: 'Remove me' }],
+        }),
+      });
+      const created = await createRes.json();
+      const [keepSubtask, removeSubtask] = created.subtasks;
+
+      const res = await app.request(`/todo/api/tasks/${created.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: 'Updated',
+          subtasks: {
+            update: [{ id: keepSubtask.id, title: 'Updated subtask', isCompleted: true }],
+            create: [{ title: 'New subtask' }],
+            delete: [removeSubtask.id],
+          },
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.title).toBe('Updated');
+      expect(body.subtasks.map((subtask: any) => subtask.title)).toEqual([
+        'Updated subtask',
+        'New subtask',
+      ]);
+      expect(body.subtasks[0].isCompleted).toBe(true);
+    });
+
     it('should 404 for non-existent task', async () => {
       const res = await app.request('/todo/api/tasks/nonexistent', {
         method: 'PUT',
@@ -138,6 +218,51 @@ describe('Task API', () => {
   });
 
   describe('POST /todo/api/tasks/:id/complete', () => {
+    it('should require confirmation when open subtasks remain', async () => {
+      const createRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: 'Parent',
+          subtasks: [{ title: 'Open subtask' }],
+        }),
+      });
+      const { id } = await createRes.json();
+
+      const res = await app.request(`/todo/api/tasks/${id}/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+
+      expect(res.status).toBe(409);
+      expect(await res.json()).toEqual({ error: 'subtasks_confirmation_required' });
+    });
+
+    it('should complete remaining subtasks when confirmation is provided', async () => {
+      const createRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: 'Parent',
+          subtasks: [{ title: 'Open subtask' }, { title: 'Done subtask', isCompleted: true }],
+        }),
+      });
+      const { id } = await createRes.json();
+
+      const res = await app.request(`/todo/api/tasks/${id}/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completeRemainingSubtasks: true }),
+      });
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.requiresConfirmation).toBe(false);
+      expect(body.completed.isCompleted).toBe(true);
+      expect(body.completed.subtasks.every((subtask: any) => subtask.isCompleted)).toBe(true);
+    });
+
     it('should complete task and return next instance for recurring', async () => {
       const createRes = await app.request('/todo/api/tasks', {
         method: 'POST',
