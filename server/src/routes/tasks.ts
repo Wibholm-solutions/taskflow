@@ -134,11 +134,6 @@ async function readJsonBody(
   c: any,
   options: { optional: boolean }
 ): Promise<{ body: Record<string, any> | null; error: string | null }> {
-  const contentType = c.req.header('content-type') ?? '';
-  if (!contentType.includes('application/json')) {
-    return options.optional ? { body: {}, error: null } : { body: null, error: 'invalid request body' };
-  }
-
   let rawBody = '';
   try {
     rawBody = await c.req.raw.text();

@@ -153,6 +153,17 @@ describe('Task API', () => {
 
       expect(res.status).toBe(400);
     });
+
+    it('should create a task with valid JSON and no content-type header', async () => {
+      const res = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        body: JSON.stringify({ title: 'Headerless create' }),
+      });
+
+      expect(res.status).toBe(201);
+      const body = await res.json();
+      expect(body.title).toBe('Headerless create');
+    });
   });
 
   describe('GET /todo/api/tasks', () => {
@@ -324,6 +335,24 @@ describe('Task API', () => {
 
       expect(res.status).toBe(400);
     });
+
+    it('should update a task with valid JSON and no content-type header', async () => {
+      const createRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Original' }),
+      });
+      const created = await createRes.json();
+
+      const res = await app.request(`/todo/api/tasks/${created.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ title: 'Headerless update' }),
+      });
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.title).toBe('Headerless update');
+    });
   });
 
   describe('POST /todo/api/tasks/:id/complete', () => {
@@ -378,6 +407,22 @@ describe('Task API', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: '{"completeRemainingSubtasks":',
+      });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('should reject non-json non-empty bodies on complete', async () => {
+      const createRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Parent' }),
+      });
+      const { id } = await createRes.json();
+
+      const res = await app.request(`/todo/api/tasks/${id}/complete`, {
+        method: 'POST',
+        body: 'complete=true',
       });
 
       expect(res.status).toBe(400);
