@@ -337,6 +337,9 @@ export class TaskService {
       if (input.notBefore !== undefined) updates.notBefore = normalizeDate(input.notBefore);
       if (input.recurrenceRule !== undefined) {
         updates.recurrenceRule = input.recurrenceRule ? JSON.stringify(input.recurrenceRule) : null;
+        if (input.recurrenceRule && !existing.recurrenceGroupId) {
+          updates.recurrenceGroupId = nanoid();
+        }
       }
       if (existingBucket !== nextBucket && nextBucket) {
         updates.sortOrder = nextSortOrder;
