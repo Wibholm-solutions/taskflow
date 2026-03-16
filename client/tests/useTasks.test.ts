@@ -52,6 +52,7 @@ describe('useTasks', () => {
     vi.mocked(api.listTasks).mockResolvedValue({ active: [], upcoming: [] });
     vi.mocked(api.completeTask).mockReset();
     vi.mocked(api.deleteTask).mockReset();
+    (api as Record<string, any>).reorderTasks = vi.fn();
   });
 
   it('should fetch tasks on mount', async () => {
@@ -319,5 +320,88 @@ describe('useTasks', () => {
       expect(result.current.active).toEqual([taskB]);
       expect(result.current.pendingCompletionTask).toBeNull();
     });
+  });
+
+  it('optimistically reorders active tasks immediately', async () => {
+    const taskC = {
+      ...taskB,
+      id: '3',
+      title: 'Task C',
+    } as any;
+
+    vi.mocked(api.listTasks)
+      .mockResolvedValueOnce({ active: [parentTask, taskB, taskC], upcoming: [] })
+      .mockResolvedValueOnce({ active: [taskB, parentTask, taskC], upcoming: [] });
+    (api as Record<string, any>).reorderTasks.mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useTasks());
+    await waitFor(() => expect(result.current.active).toHaveLength(3));
+
+    act(() => {
+      (result.current as any).reorderTasks([taskB.id, parentTask.id, taskC.id]);
+    });
+
+    expect(result.current.active.map((task) => task.id)).toEqual([taskB.id, parentTask.id, taskC.id]);
+    await waitFor(() => expect((api as Record<string, any>).reorderTasks).toHaveBeenCalledWith([
+      taskB.id,
+      parentTask.id,
+      taskC.id,
+    ]));
+  });
+
+  it('restores prior order and surfaces the error when reorder fails', async () => {
+    const taskC = {
+      ...taskB,
+      id: '3',
+      title: 'Task C',
+    } as any;
+
+    vi.mocked(api.listTasks)
+      .mockResolvedValueOnce({ active: [parentTask, taskB, taskC], upcoming: [] })
+      .mockResolvedValueOnce({ active: [parentTask, taskB, taskC], upcoming: [] });
+    (api as Record<string, any>).reorderTasks.mockRejectedValue(new Error('Network error'));
+
+    const { result } = renderHook(() => useTasks());
+    await waitFor(() => expect(result.current.active).toHaveLength(3));
+
+    act(() => {
+      (result.current as any).reorderTasks([taskB.id, parentTask.id, taskC.id]);
+    });
+
+    expect(result.current.active.map((task) => task.id)).toEqual([taskB.id, parentTask.id, taskC.id]);
+
+    await waitFor(() => expect(result.current.active.map((task) => task.id)).toEqual([
+      parentTask.id,
+      taskB.id,
+      taskC.id,
+    ]));
+    expect(result.current.error).toBe('Network error');
+  });
+
+  it('refreshes after stale server rejection and snaps back cleanly', async () => {
+    const taskC = {
+      ...taskB,
+      id: '3',
+      title: 'Task C',
+    } as any;
+
+    vi.mocked(api.listTasks)
+      .mockResolvedValueOnce({ active: [parentTask, taskB, taskC], upcoming: [] })
+      .mockResolvedValueOnce({ active: [taskC, parentTask, taskB], upcoming: [] });
+    (api as Record<string, any>).reorderTasks.mockRejectedValue(new Error('invalid reorder payload'));
+
+    const { result } = renderHook(() => useTasks());
+    await waitFor(() => expect(result.current.active).toHaveLength(3));
+
+    act(() => {
+      (result.current as any).reorderTasks([taskB.id, parentTask.id, taskC.id]);
+    });
+
+    await waitFor(() => expect(result.current.active.map((task) => task.id)).toEqual([
+      taskC.id,
+      parentTask.id,
+      taskB.id,
+    ]));
+    expect(result.current.error).toBe('invalid reorder payload');
   });
 });

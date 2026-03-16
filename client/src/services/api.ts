@@ -45,4 +45,10 @@ export const api = {
       method: 'POST',
       body: options ? JSON.stringify(options) : undefined,
     }),
+
+  reorderTasks: (taskIds: string[]) =>
+    request<void>('/tasks/reorder', {
+      method: 'POST',
+      body: JSON.stringify({ taskIds }),
+    }),
 };

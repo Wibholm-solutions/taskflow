@@ -67,6 +67,7 @@ export interface TaskResponse {
   notBefore: string | null;
   recurrenceGroupId: string | null;
   recurrenceRule: RecurrenceRule | null;
+  sortOrder: number;
   createdAt: string;
   updatedAt: string;
   subtasks: SubtaskResponse[];
@@ -76,4 +77,8 @@ export interface CompleteTaskResult {
   completed: TaskResponse | null;
   nextInstance: TaskResponse | null;
   requiresConfirmation: boolean;
+}
+
+export interface ReorderTasksInput {
+  taskIds: string[];
 }

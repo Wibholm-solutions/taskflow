@@ -21,6 +21,7 @@ export default function App() {
     cancelPendingCompletion,
     deleteTask,
     updateTask,
+    reorderTasks,
     clearError,
     refresh,
   } = useTasks();
@@ -114,6 +115,7 @@ export default function App() {
           onComplete={completeTask}
           onDelete={deleteTask}
           onTap={handleTap}
+          onReorder={reorderTasks}
         />
       </div>
       <FloatingAddButton onClick={handleAdd} />

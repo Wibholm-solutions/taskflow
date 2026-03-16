@@ -1,4 +1,5 @@
 import { TaskItem } from './TaskItem';
+import { useState } from 'react';
 import type { Task } from '../types';
 
 interface TaskListProps {
@@ -8,9 +9,54 @@ interface TaskListProps {
   onComplete: (id: string) => void;
   onDelete: (id: string) => void;
   onTap: (task: Task) => void;
+  onReorder: (taskIds: string[]) => void;
 }
 
-export function TaskList({ active, upcoming, loading, onComplete, onDelete, onTap }: TaskListProps) {
+export function TaskList({
+  active,
+  upcoming,
+  loading,
+  onComplete,
+  onDelete,
+  onTap,
+  onReorder,
+}: TaskListProps) {
+  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  const getBucketKey = (task: Task) => {
+    const urgency = task.deadline && task.deadline <= today ? `due:${task.deadline}` : 'active';
+    return `${urgency}:${task.priority}`;
+  };
+
+  const handleDrop = (targetTask: Task) => {
+    if (!draggedTaskId || draggedTaskId === targetTask.id) {
+      setDraggedTaskId(null);
+      return;
+    }
+
+    const draggedTask = active.find((task) => task.id === draggedTaskId);
+    if (!draggedTask) {
+      setDraggedTaskId(null);
+      return;
+    }
+
+    const targetBucket = getBucketKey(targetTask);
+    if (getBucketKey(draggedTask) !== targetBucket) {
+      setDraggedTaskId(null);
+      return;
+    }
+
+    const bucketTasks = active.filter((task) => getBucketKey(task) === targetBucket);
+    const reorderedBucketIds = bucketTasks.map((task) => task.id).filter((id) => id !== draggedTaskId);
+    const targetIndex = reorderedBucketIds.indexOf(targetTask.id);
+    reorderedBucketIds.splice(targetIndex + 1, 0, draggedTaskId);
+
+    setDraggedTaskId(null);
+    onReorder(reorderedBucketIds);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -37,13 +83,24 @@ export function TaskList({ active, upcoming, loading, onComplete, onDelete, onTa
             Aktive
           </h2>
           {active.map((task) => (
-            <TaskItem
+            <div
               key={task.id}
-              task={task}
-              onComplete={onComplete}
-              onDelete={onDelete}
-              onTap={onTap}
-            />
+              data-testid={`task-${task.id}`}
+              data-bucket={getBucketKey(task)}
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={() => handleDrop(task)}
+            >
+              <TaskItem
+                task={task}
+                onComplete={onComplete}
+                onDelete={onDelete}
+                onTap={onTap}
+                canDrag
+                onDragStart={(dragTask) => setDraggedTaskId(dragTask.id)}
+                onDragEnd={() => setDraggedTaskId(null)}
+                onTouchDragStart={(dragTask) => setDraggedTaskId(dragTask.id)}
+              />
+            </div>
           ))}
         </div>
       )}
@@ -54,14 +111,15 @@ export function TaskList({ active, upcoming, loading, onComplete, onDelete, onTa
             Kommende
           </h2>
           {upcoming.map((task) => (
-            <TaskItem
-              key={task.id}
-              task={task}
-              onComplete={onComplete}
-              onDelete={onDelete}
-              onTap={onTap}
-              upcoming
-            />
+            <div key={task.id} data-testid={`task-${task.id}`}>
+              <TaskItem
+                task={task}
+                onComplete={onComplete}
+                onDelete={onDelete}
+                onTap={onTap}
+                upcoming
+              />
+            </div>
           ))}
         </div>
       )}

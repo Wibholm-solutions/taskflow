@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import * as schema from '../src/db/schema';
@@ -19,6 +19,7 @@ function setupTestDb() {
       not_before TEXT,
       recurrence_group_id TEXT,
       recurrence_rule TEXT,
+      sort_order INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -48,7 +49,10 @@ describe('TaskService', () => {
     service = new TaskService(setup.db);
   });
 
-  afterEach(() => sqlite.close());
+  afterEach(() => {
+    vi.useRealTimers();
+    sqlite.close();
+  });
 
   describe('listTasks', () => {
     it('should separate active and upcoming tasks', async () => {
@@ -109,6 +113,117 @@ describe('TaskService', () => {
       expect(result.active).toHaveLength(1);
       expect(result.active[0].title).toBe('Active');
     });
+
+    it('sorts active tasks by urgency, priority, sortOrder, createdAt, then id', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-03-16T10:00:00.000Z'));
+
+      sqlite.prepare(
+        `INSERT INTO tasks (
+          id, title, deadline, priority, sort_order, created_at, updated_at
+        ) VALUES
+          (?, ?, ?, ?, ?, ?, ?),
+          (?, ?, ?, ?, ?, ?, ?),
+          (?, ?, ?, ?, ?, ?, ?),
+          (?, ?, ?, ?, ?, ?, ?),
+          (?, ?, ?, ?, ?, ?, ?)`
+      ).run(
+        'urgent-rank-1',
+        'Urgent rank 1',
+        '2026-03-15',
+        'high',
+        0,
+        '2026-03-16T08:00:00.000Z',
+        '2026-03-16T08:00:00.000Z',
+        'urgent-rank-2',
+        'Urgent rank 2',
+        '2026-03-15',
+        'high',
+        1,
+        '2026-03-16T08:01:00.000Z',
+        '2026-03-16T08:01:00.000Z',
+        'urgent-fallback-older',
+        'Urgent fallback older',
+        '2026-03-15',
+        'high',
+        2,
+        '2026-03-16T08:02:00.000Z',
+        '2026-03-16T08:02:00.000Z',
+        'urgent-fallback-newer',
+        'Urgent fallback newer',
+        '2026-03-15',
+        'high',
+        2,
+        '2026-03-16T08:03:00.000Z',
+        '2026-03-16T08:03:00.000Z',
+        'default-bucket-first',
+        'Default bucket first',
+        null,
+        'default',
+        0,
+        '2026-03-16T08:04:00.000Z',
+        '2026-03-16T08:04:00.000Z'
+      );
+
+      const result = await service.listTasks();
+      expect(result.active.map((task) => task.title)).toEqual([
+        'Urgent rank 1',
+        'Urgent rank 2',
+        'Urgent fallback older',
+        'Urgent fallback newer',
+        'Default bucket first',
+      ]);
+    });
+
+    it('keeps upcoming sorting independent from sortOrder', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-03-16T10:00:00.000Z'));
+
+      sqlite.prepare(
+        `INSERT INTO tasks (
+          id, title, not_before, sort_order, created_at, updated_at
+        ) VALUES
+          (?, ?, ?, ?, ?, ?),
+          (?, ?, ?, ?, ?, ?)`
+      ).run(
+        'later-upcoming',
+        'Later upcoming',
+        '2026-03-18',
+        0,
+        '2026-03-16T08:00:00.000Z',
+        '2026-03-16T08:00:00.000Z',
+        'sooner-upcoming',
+        'Sooner upcoming',
+        '2026-03-17',
+        99,
+        '2026-03-16T08:01:00.000Z',
+        '2026-03-16T08:01:00.000Z'
+      );
+
+      const result = await service.listTasks();
+      expect(result.upcoming.map((task) => task.title)).toEqual([
+        'Sooner upcoming',
+        'Later upcoming',
+      ]);
+    });
+
+    it('normalizes deadline and notBefore values before deriving buckets', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-03-16T10:00:00.000Z'));
+
+      await service.create({
+        title: 'Normalized active',
+        deadline: '2026-03-16T18:45:00.000Z',
+      });
+      await service.create({
+        title: 'Normalized upcoming',
+        notBefore: '2026-03-17T05:30:00.000Z',
+      });
+
+      const result = await service.listTasks();
+      expect(result.active[0].deadline).toBe('2026-03-16');
+      expect(result.upcoming[0].notBefore).toBe('2026-03-17');
+    });
   });
 
   describe('create', () => {
@@ -117,6 +232,7 @@ describe('TaskService', () => {
       expect(task.title).toBe('Test');
       expect(task.priority).toBe('default');
       expect(task.isCompleted).toBe(false);
+      expect(task.sortOrder).toBe(0);
       expect(task.subtasks).toEqual([]);
     });
 
@@ -140,6 +256,25 @@ describe('TaskService', () => {
         'Second subtask',
       ]);
       expect(task.subtasks.every((subtask) => subtask.isCompleted === false)).toBe(true);
+    });
+
+    it('assigns sortOrder at the end of the active bucket', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-03-16T10:00:00.000Z'));
+
+      const first = await service.create({
+        title: 'First high',
+        priority: 'high',
+        deadline: '2026-03-15',
+      });
+      const second = await service.create({
+        title: 'Second high',
+        priority: 'high',
+        deadline: '2026-03-15',
+      });
+
+      expect(first.sortOrder).toBe(0);
+      expect(second.sortOrder).toBe(1);
     });
   });
 
@@ -383,6 +518,58 @@ describe('TaskService', () => {
           },
         })
       ).rejects.toThrow('subtask does not belong to task');
+    });
+
+    it('moves a task to the end of its new active bucket after priority changes', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-03-16T10:00:00.000Z'));
+
+      const highTask = await service.create({ title: 'High task', priority: 'high' });
+      await service.create({ title: 'Default first', priority: 'default' });
+      await service.create({ title: 'Default second', priority: 'default' });
+
+      await service.update(highTask.id, { priority: 'default' });
+
+      const result = await service.listTasks();
+      expect(result.active.map((task) => task.title)).toEqual([
+        'Default first',
+        'Default second',
+        'High task',
+      ]);
+    });
+  });
+
+  describe('reorder', () => {
+    it('rewrites sortOrder sequentially for one active bucket', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-03-16T10:00:00.000Z'));
+
+      const first = await service.create({ title: 'First', priority: 'default' });
+      const second = await service.create({ title: 'Second', priority: 'default' });
+      const third = await service.create({ title: 'Third', priority: 'default' });
+
+      await service.reorder([third.id, first.id, second.id]);
+
+      const result = await service.listTasks();
+      expect(result.active.map((task) => task.title)).toEqual(['Third', 'First', 'Second']);
+      expect(result.active.map((task) => task.sortOrder)).toEqual([0, 1, 2]);
+    });
+
+    it('rejects invalid bucket payloads without changing persisted order', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-03-16T10:00:00.000Z'));
+
+      const first = await service.create({ title: 'First', priority: 'default' });
+      await service.create({ title: 'Second', priority: 'default' });
+      const upcoming = await service.create({ title: 'Upcoming', notBefore: '2026-03-17' });
+
+      await expect(service.reorder([first.id, first.id])).rejects.toThrow('invalid reorder payload');
+      await expect(service.reorder([first.id])).rejects.toThrow('invalid reorder payload');
+      await expect(service.reorder([first.id, upcoming.id])).rejects.toThrow('invalid reorder payload');
+
+      const result = await service.listTasks();
+      expect(result.active.map((task) => task.title)).toEqual(['First', 'Second']);
+      expect(result.active.map((task) => task.sortOrder)).toEqual([0, 1]);
     });
   });
 

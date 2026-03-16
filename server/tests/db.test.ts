@@ -24,6 +24,7 @@ describe('Database schema', () => {
         not_before TEXT,
         recurrence_group_id TEXT,
         recurrence_rule TEXT,
+        sort_order INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
       )
@@ -70,5 +71,10 @@ describe('Database schema', () => {
     await db.insert(tasks).values({ id: nanoid(), title: 'Task' });
     const result = await db.select().from(tasks);
     expect(result[0].userId).toBe('default');
+  });
+
+  it('creates tasks with sort_order available', () => {
+    const result = sqlite.prepare('PRAGMA table_info(tasks)').all() as Array<{ name: string }>;
+    expect(result.some((column) => column.name === 'sort_order')).toBe(true);
   });
 });

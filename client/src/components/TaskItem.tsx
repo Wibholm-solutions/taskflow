@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { useSwipe } from '../hooks/useSwipe';
 import type { Task } from '../types';
 
@@ -7,6 +8,10 @@ interface TaskItemProps {
   onDelete: (id: string) => void;
   onTap: (task: Task) => void;
   upcoming?: boolean;
+  canDrag?: boolean;
+  onDragStart?: (task: Task) => void;
+  onDragEnd?: () => void;
+  onTouchDragStart?: (task: Task) => void;
 }
 
 export function formatDeadline(deadline: string): string {
@@ -34,12 +39,23 @@ const PRIORITY_BADGE: Record<string, string> = {
   low: 'text-gray-400',
 };
 
-export function TaskItem({ task, onComplete, onDelete, onTap, upcoming }: TaskItemProps) {
+export function TaskItem({
+  task,
+  onComplete,
+  onDelete,
+  onTap,
+  upcoming,
+  canDrag = false,
+  onDragStart,
+  onDragEnd,
+  onTouchDragStart,
+}: TaskItemProps) {
   const { ref, offset, isSwiping } = useSwipe({
     onSwipeRight: () => onComplete(task.id),
     onSwipeLeft: () => onDelete(task.id),
     threshold: 80,
   });
+  const touchTimerRef = useRef<number | null>(null);
   const subtasks = task.subtasks ?? [];
   const subtaskCount = subtasks.length;
   const completedSubtaskCount = subtasks.filter((subtask) => subtask.isCompleted).length;
@@ -52,6 +68,13 @@ export function TaskItem({ task, onComplete, onDelete, onTap, upcoming }: TaskIt
         return 'text-gray-400';
       })()
     : '';
+
+  const clearTouchTimer = () => {
+    if (touchTimerRef.current !== null) {
+      window.clearTimeout(touchTimerRef.current);
+      touchTimerRef.current = null;
+    }
+  };
 
   return (
     <div
@@ -77,6 +100,35 @@ export function TaskItem({ task, onComplete, onDelete, onTap, upcoming }: TaskIt
         style={{ transform: `translateX(${offset}px)` }}
       >
         <div className="flex items-center justify-between">
+          {canDrag && !upcoming ? (
+            <button
+              type="button"
+              draggable
+              data-testid={`task-drag-handle-${task.id}`}
+              className="mr-3 rounded border border-white/10 px-2 py-1 text-xs text-gray-400"
+              onClick={(event) => event.stopPropagation()}
+              onDragStart={(event) => {
+                event.stopPropagation();
+                onDragStart?.(task);
+              }}
+              onDragEnd={() => {
+                clearTouchTimer();
+                onDragEnd?.();
+              }}
+              onTouchStart={(event) => {
+                event.stopPropagation();
+                clearTouchTimer();
+                touchTimerRef.current = window.setTimeout(() => {
+                  onTouchDragStart?.(task);
+                  touchTimerRef.current = null;
+                }, 300);
+              }}
+              onTouchEnd={clearTouchTimer}
+              onTouchCancel={clearTouchTimer}
+            >
+              ::
+            </button>
+          ) : null}
           <div className="flex-1 min-w-0">
             <span className="text-white text-sm font-medium truncate block">
               {task.title}
