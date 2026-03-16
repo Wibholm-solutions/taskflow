@@ -71,6 +71,23 @@ Behavior:
 - Existing tasks that change priority, deadline, or `notBefore` and therefore move between active buckets are reassigned to the end of the destination bucket
 - Recurring next instances are created at the end of their destination bucket
 
+### Rollout and schema update
+
+The app currently bootstraps SQLite schema with raw startup SQL rather than a migration framework, so this feature needs an explicit startup-safe schema upgrade.
+
+Required rollout behavior:
+
+- On startup, detect whether `tasks.sort_order` exists
+- If missing, add the column with a temporary default
+- Backfill all existing task rows with deterministic values based on the current list ordering rules so the visible order does not jump on upgrade
+- Ensure local test schema setup also defines `sort_order`
+- Update any test fixtures or raw `CREATE TABLE tasks` statements to include the new column
+
+Backfill rule:
+
+- Completed tasks may receive any stable value because they do not participate in active ordering
+- Incomplete tasks should be assigned `sort_order` values that preserve the order the current app would return immediately before the feature ships
+
 ## API and Service Design
 
 Keep ordering logic in the server so the client never becomes the source of truth for task rank.
@@ -84,6 +101,7 @@ Keep ordering logic in the server so the client never becomes the source of trut
 - Keep `upcoming` sorting unchanged
 - Keep active grouping by urgency and priority
 - Use `sortOrder` as the final tiebreaker within each active bucket
+- Normalize persisted `deadline` and `notBefore` values to canonical `YYYY-MM-DD` strings before bucket comparison logic depends on them
 
 ### Reorder tasks
 
@@ -140,6 +158,7 @@ Invalid drops should snap back to the last valid order.
 - The dragged card shows a grabbed state
 - The list shows a placeholder or insertion gap
 - Clicking elsewhere on the card still opens the task modal
+- Pointer interaction on the handle must stop card-click behavior so pressing the handle never opens the modal
 
 ### Touch interaction
 
@@ -147,6 +166,7 @@ Invalid drops should snap back to the last valid order.
 - Swipe complete/delete is suppressed only while drag mode is active
 - Releasing or cancelling drag restores normal swipe behavior
 - Touch interaction outside the handle keeps the current card tap and swipe behavior
+- Touch start and long-press on the handle must not bubble into card tap behavior
 
 ### State handling
 
@@ -165,6 +185,7 @@ Invalid drops should snap back to the last valid order.
 - Client rolls back optimistic movement on request failure
 - Invalid client drops do not trigger persistence
 - Gesture cancellation should leave the visible order unchanged
+- Interacting with the drag handle without completing a drag must not open the edit modal
 
 ## Testing Strategy
 
@@ -180,6 +201,9 @@ Add coverage for:
 - rejecting stale reorder payloads after concurrent task changes or date-bucket changes
 - atomic updates when rewriting a bucket order
 - route-level validation and HTTP behavior for `POST /tasks/reorder`
+- canonical date normalization for `deadline` and `notBefore` before ordering logic runs
+- recurring completion flows that create a next instance at the end of its destination bucket
+- recurring completion flows that reuse an existing future instance and reassign its `sortOrder` when its destination bucket changes
 
 ### Client tests
 
@@ -193,6 +217,7 @@ Add coverage for:
 - long-press drag on the handle for touch
 - no regression to swipe complete/delete when not dragging
 - card click still opens edit when the drag handle is not used
+- handle press or long-press does not open edit
 
 ### End-to-end
 
@@ -203,6 +228,7 @@ Add one flow covering:
 - refresh and verify order persists
 - verify tasks in another priority bucket are unaffected
 - verify upcoming tasks remain non-draggable
+- verify using the drag handle does not open the task modal
 
 ## Open Decisions Resolved
 
