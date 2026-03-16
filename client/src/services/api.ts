@@ -1,4 +1,11 @@
-import type { Task, TaskListResponse, CreateTaskInput, CompleteResponse } from '../types';
+import type {
+  Task,
+  TaskListResponse,
+  CreateTaskInput,
+  UpdateTaskInput,
+  CompleteResponse,
+  CompleteTaskOptions,
+} from '../types';
 
 const BASE = '/todo/api';
 
@@ -24,7 +31,7 @@ export const api = {
       body: JSON.stringify(input),
     }),
 
-  updateTask: (id: string, input: Partial<CreateTaskInput>) =>
+  updateTask: (id: string, input: UpdateTaskInput) =>
     request<Task>(`/tasks/${id}`, {
       method: 'PUT',
       body: JSON.stringify(input),
@@ -33,6 +40,9 @@ export const api = {
   deleteTask: (id: string) =>
     request<void>(`/tasks/${id}`, { method: 'DELETE' }),
 
-  completeTask: (id: string) =>
-    request<CompleteResponse>(`/tasks/${id}/complete`, { method: 'POST' }),
+  completeTask: (id: string, options?: CompleteTaskOptions) =>
+    request<CompleteResponse>(`/tasks/${id}/complete`, {
+      method: 'POST',
+      body: options ? JSON.stringify(options) : undefined,
+    }),
 };

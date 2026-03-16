@@ -2,6 +2,24 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { TaskModal } from '../src/components/TaskModal';
+import { TaskItem } from '../src/components/TaskItem';
+import type { Task } from '../src/types';
+
+const baseTask: Task = {
+  id: 'task-1',
+  title: 'Existing',
+  description: 'Desc',
+  deadline: '2026-03-01',
+  priority: 'high',
+  isCompleted: false,
+  completedAt: null,
+  notBefore: null,
+  recurrenceGroupId: null,
+  recurrenceRule: null,
+  createdAt: '2026-03-01T00:00:00.000Z',
+  updatedAt: '2026-03-01T00:00:00.000Z',
+  subtasks: [],
+};
 
 describe('TaskModal', () => {
   it('renders with title field', () => {
@@ -64,5 +82,177 @@ describe('TaskModal', () => {
   it('is hidden when isOpen is false', () => {
     const { container } = render(<TaskModal isOpen={false} onClose={() => {}} onSave={() => {}} />);
     expect(container.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it('renders existing subtasks inline when editing', () => {
+    render(
+      <TaskModal
+        isOpen={true}
+        onClose={() => {}}
+        onSave={() => {}}
+        editTask={{
+          ...baseTask,
+          subtasks: [
+            {
+              id: 'subtask-1',
+              taskId: 'task-1',
+              title: 'First subtask',
+              isCompleted: false,
+              completedAt: null,
+              createdAt: '2026-03-01T00:00:00.000Z',
+              updatedAt: '2026-03-01T00:00:00.000Z',
+            },
+            {
+              id: 'subtask-2',
+              taskId: 'task-1',
+              title: 'Done subtask',
+              isCompleted: true,
+              completedAt: '2026-03-01T12:00:00.000Z',
+              createdAt: '2026-03-01T00:00:00.000Z',
+              updatedAt: '2026-03-01T12:00:00.000Z',
+            },
+          ],
+        }}
+      />
+    );
+
+    expect(screen.getByDisplayValue('First subtask')).toBeTruthy();
+    expect(screen.getByDisplayValue('Done subtask')).toBeTruthy();
+  });
+
+  it('submits subtask create, update, and delete mutations from inline edits', () => {
+    const onSave = vi.fn();
+
+    render(
+      <TaskModal
+        isOpen={true}
+        onClose={() => {}}
+        onSave={onSave}
+        editTask={{
+          ...baseTask,
+          subtasks: [
+            {
+              id: 'subtask-1',
+              taskId: 'task-1',
+              title: 'Keep me',
+              isCompleted: false,
+              completedAt: null,
+              createdAt: '2026-03-01T00:00:00.000Z',
+              updatedAt: '2026-03-01T00:00:00.000Z',
+            },
+            {
+              id: 'subtask-2',
+              taskId: 'task-1',
+              title: 'Remove me',
+              isCompleted: false,
+              completedAt: null,
+              createdAt: '2026-03-01T00:00:00.000Z',
+              updatedAt: '2026-03-01T00:00:00.000Z',
+            },
+          ],
+        }}
+      />
+    );
+
+    fireEvent.change(screen.getByDisplayValue('Keep me'), {
+      target: { value: 'Updated subtask' },
+    });
+    fireEvent.click(screen.getByLabelText('Mark "Updated subtask" as completed'));
+    fireEvent.click(screen.getByLabelText('Delete "Remove me"'));
+    fireEvent.click(screen.getByText('Tilføj underopgave'));
+    fireEvent.change(screen.getByPlaceholderText('Ny underopgave'), {
+      target: { value: 'Brand new subtask' },
+    });
+    fireEvent.click(screen.getByText('Gem'));
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Existing',
+        subtasks: {
+          create: [{ title: 'Brand new subtask', isCompleted: false }],
+          update: [{ id: 'subtask-1', title: 'Updated subtask', isCompleted: true }],
+          delete: ['subtask-2'],
+        },
+      })
+    );
+  });
+
+  it('blocks save when an existing subtask title is cleared to blank', () => {
+    const onSave = vi.fn();
+
+    render(
+      <TaskModal
+        isOpen={true}
+        onClose={() => {}}
+        onSave={onSave}
+        editTask={{
+          ...baseTask,
+          subtasks: [
+            {
+              id: 'subtask-1',
+              taskId: 'task-1',
+              title: 'Must stay named',
+              isCompleted: false,
+              completedAt: null,
+              createdAt: '2026-03-01T00:00:00.000Z',
+              updatedAt: '2026-03-01T00:00:00.000Z',
+            },
+          ],
+        }}
+      />
+    );
+
+    fireEvent.change(screen.getByDisplayValue('Must stay named'), {
+      target: { value: '   ' },
+    });
+    fireEvent.click(screen.getByText('Gem'));
+
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog')).toBeTruthy();
+  });
+
+  it('shows subtask overview progress on task cards', () => {
+    render(
+      <TaskItem
+        task={{
+          ...baseTask,
+          subtasks: [
+            {
+              id: 'subtask-1',
+              taskId: 'task-1',
+              title: 'Done',
+              isCompleted: true,
+              completedAt: '2026-03-01T12:00:00.000Z',
+              createdAt: '2026-03-01T00:00:00.000Z',
+              updatedAt: '2026-03-01T12:00:00.000Z',
+            },
+            {
+              id: 'subtask-2',
+              taskId: 'task-1',
+              title: 'Open',
+              isCompleted: false,
+              completedAt: null,
+              createdAt: '2026-03-01T00:00:00.000Z',
+              updatedAt: '2026-03-01T00:00:00.000Z',
+            },
+            {
+              id: 'subtask-3',
+              taskId: 'task-1',
+              title: 'Done again',
+              isCompleted: true,
+              completedAt: '2026-03-01T13:00:00.000Z',
+              createdAt: '2026-03-01T00:00:00.000Z',
+              updatedAt: '2026-03-01T13:00:00.000Z',
+            },
+          ],
+        }}
+        onComplete={() => {}}
+        onDelete={() => {}}
+        onTap={() => {}}
+      />
+    );
+
+    expect(screen.getByText('2/3')).toBeTruthy();
+    expect(screen.getByLabelText('3 subtasks')).toBeTruthy();
   });
 });

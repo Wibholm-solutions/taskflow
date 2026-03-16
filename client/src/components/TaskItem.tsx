@@ -40,6 +40,9 @@ export function TaskItem({ task, onComplete, onDelete, onTap, upcoming }: TaskIt
     onSwipeLeft: () => onDelete(task.id),
     threshold: 80,
   });
+  const subtasks = task.subtasks ?? [];
+  const subtaskCount = subtasks.length;
+  const completedSubtaskCount = subtasks.filter((subtask) => subtask.isCompleted).length;
 
   const deadlineColor = task.deadline
     ? (() => {
@@ -81,6 +84,14 @@ export function TaskItem({ task, onComplete, onDelete, onTap, upcoming }: TaskIt
             <div className="flex items-center gap-2 mt-1 text-xs">
               {task.deadline && (
                 <span className={deadlineColor}>{formatDeadline(task.deadline)}</span>
+              )}
+              {subtaskCount > 0 && (
+                <>
+                  <span className="text-gray-500" aria-label={`${subtaskCount} subtasks`}>
+                    ≣
+                  </span>
+                  <span className="text-gray-300">{completedSubtaskCount}/{subtaskCount}</span>
+                </>
               )}
               {task.recurrenceRule && (
                 <span className="text-blue-400">&#x21BB;</span>

@@ -1,15 +1,42 @@
 import { useState, useEffect, useRef } from 'react';
-import type { Task, CreateTaskInput, Priority, RecurrenceRule } from '../types';
+import type {
+  Task,
+  Priority,
+  RecurrenceRule,
+  SubtaskInput,
+  SubtaskMutationInput,
+  TaskFormInput,
+} from '../types';
 
 interface TaskModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (input: CreateTaskInput) => void;
+  onSave: (input: TaskFormInput) => void;
   onDelete?: () => void;
   editTask?: Task | null;
 }
 
 const WEEKDAY_LABELS = ['S', 'M', 'T', 'O', 'T', 'F', 'L'];
+
+interface EditableSubtask {
+  id: string | null;
+  title: string;
+  isCompleted: boolean;
+  initialTitle: string;
+  initialCompleted: boolean;
+}
+
+function createEditableSubtask(
+  subtask?: Partial<Pick<EditableSubtask, 'id' | 'title' | 'isCompleted' | 'initialTitle' | 'initialCompleted'>>
+): EditableSubtask {
+  return {
+    id: subtask?.id ?? null,
+    title: subtask?.title ?? '',
+    isCompleted: subtask?.isCompleted ?? false,
+    initialTitle: subtask?.initialTitle ?? subtask?.title ?? '',
+    initialCompleted: subtask?.initialCompleted ?? subtask?.isCompleted ?? false,
+  };
+}
 
 export function TaskModal({ isOpen, onClose, onSave, onDelete, editTask }: TaskModalProps) {
   const [title, setTitle] = useState('');
@@ -22,6 +49,8 @@ export function TaskModal({ isOpen, onClose, onSave, onDelete, editTask }: TaskM
   const [recurrenceType, setRecurrenceType] = useState<'none' | 'weekdays' | 'days_after' | 'months_after'>('none');
   const [recurrenceDays, setRecurrenceDays] = useState<number[]>([]);
   const [recurrenceInterval, setRecurrenceInterval] = useState(7);
+  const [subtasks, setSubtasks] = useState<EditableSubtask[]>([]);
+  const [deletedSubtaskIds, setDeletedSubtaskIds] = useState<string[]>([]);
 
   const titleRef = useRef<HTMLInputElement>(null);
 
@@ -50,6 +79,12 @@ export function TaskModal({ isOpen, onClose, onSave, onDelete, editTask }: TaskM
         setDescription(editTask.description || '');
         setDeadline(editTask.deadline || '');
         setPriority(editTask.priority);
+        setSubtasks((editTask.subtasks ?? []).map((subtask) => createEditableSubtask({
+          id: subtask.id,
+          title: subtask.title,
+          isCompleted: subtask.isCompleted,
+        })));
+        setDeletedSubtaskIds([]);
         if (editTask.recurrenceRule) {
           setRecurrenceType(editTask.recurrenceRule.type);
           if (editTask.recurrenceRule.type === 'weekdays') {
@@ -73,6 +108,8 @@ export function TaskModal({ isOpen, onClose, onSave, onDelete, editTask }: TaskM
         setRecurrenceType('none');
         setRecurrenceDays([]);
         setRecurrenceInterval(7);
+        setSubtasks([]);
+        setDeletedSubtaskIds([]);
       }
     }
   }, [isOpen, editTask]);
@@ -81,6 +118,7 @@ export function TaskModal({ isOpen, onClose, onSave, onDelete, editTask }: TaskM
 
   const handleSave = () => {
     if (!title.trim()) return;
+    if (editTask && subtasks.some((subtask) => subtask.id && !subtask.title.trim())) return;
 
     let recurrenceRule: RecurrenceRule | undefined;
     if (recurrenceType === 'weekdays' && recurrenceDays.length > 0) {
@@ -91,19 +129,98 @@ export function TaskModal({ isOpen, onClose, onSave, onDelete, editTask }: TaskM
       recurrenceRule = { type: 'months_after', interval: recurrenceInterval };
     }
 
-    onSave({
+    const baseInput: TaskFormInput = {
       title: title.trim(),
       description: description.trim() || undefined,
       deadline: deadline || undefined,
       priority,
       recurrenceRule,
-    });
+    };
+
+    if (editTask) {
+      const create: SubtaskInput[] = [];
+      const update: NonNullable<SubtaskMutationInput['update']> = [];
+
+      for (const subtask of subtasks) {
+        const trimmedTitle = subtask.title.trim();
+
+        if (!subtask.id) {
+          if (trimmedTitle) {
+            create.push({ title: trimmedTitle, isCompleted: subtask.isCompleted });
+          }
+          continue;
+        }
+
+        const subtaskUpdate: { id: string; title?: string; isCompleted?: boolean } = { id: subtask.id };
+        if (trimmedTitle && trimmedTitle !== subtask.initialTitle) {
+          subtaskUpdate.title = trimmedTitle;
+        }
+        if (subtask.isCompleted !== subtask.initialCompleted) {
+          subtaskUpdate.isCompleted = subtask.isCompleted;
+        }
+
+        if (subtaskUpdate.title !== undefined || subtaskUpdate.isCompleted !== undefined) {
+          update.push(subtaskUpdate);
+        }
+      }
+
+      const subtasksInput: SubtaskMutationInput = {};
+      if (create.length > 0) {
+        subtasksInput.create = create;
+      }
+      if (update.length > 0) {
+        subtasksInput.update = update;
+      }
+      if (deletedSubtaskIds.length > 0) {
+        subtasksInput.delete = deletedSubtaskIds;
+      }
+
+      if (subtasksInput.create || subtasksInput.update || subtasksInput.delete) {
+        baseInput.subtasks = subtasksInput;
+      }
+    } else {
+      const create = subtasks
+        .map((subtask) => ({
+          title: subtask.title.trim(),
+          isCompleted: subtask.isCompleted,
+        }))
+        .filter((subtask) => subtask.title.length > 0);
+
+      if (create.length > 0) {
+        baseInput.subtasks = create;
+      }
+    }
+
+    onSave(baseInput);
   };
 
   const toggleWeekday = (day: number) => {
     setRecurrenceDays((prev) =>
       prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
     );
+  };
+
+  const updateSubtask = (index: number, patch: Partial<EditableSubtask>) => {
+    setSubtasks((prev) => prev.map((subtask, currentIndex) => (
+      currentIndex === index ? { ...subtask, ...patch } : subtask
+    )));
+  };
+
+  const addSubtask = () => {
+    setSubtasks((prev) => [...prev, createEditableSubtask()]);
+  };
+
+  const removeSubtask = (index: number) => {
+    setSubtasks((prev) => {
+      const target = prev[index];
+      if (target?.id) {
+        setDeletedSubtaskIds((deleted) => (
+          deleted.includes(target.id as string) ? deleted : [...deleted, target.id as string]
+        ));
+      }
+
+      return prev.filter((_, currentIndex) => currentIndex !== index);
+    });
   };
 
   return (
@@ -242,6 +359,55 @@ export function TaskModal({ isOpen, onClose, onSave, onDelete, editTask }: TaskM
             </div>
           </div>
         )}
+
+        <div className="mb-4">
+          <div className="mb-2 flex items-center justify-between">
+            <label className="text-gray-400 text-xs block">Underopgaver</label>
+            <button
+              type="button"
+              onClick={addSubtask}
+              className="text-blue-400 text-sm"
+            >
+              Tilføj underopgave
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            {subtasks.map((subtask, index) => {
+              const trimmedTitle = subtask.title.trim();
+              const checkboxLabel = trimmedTitle || 'underopgave';
+              const deleteLabel = trimmedTitle || 'underopgave';
+
+              return (
+                <div key={subtask.id ?? `new-${index}`} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={subtask.isCompleted}
+                    aria-label={`Mark "${checkboxLabel}" as completed`}
+                    onChange={(e) => updateSubtask(index, { isCompleted: e.target.checked })}
+                    className="h-4 w-4 rounded border-gray-600 bg-gray-700"
+                  />
+                  <input
+                    type="text"
+                    value={subtask.title}
+                    placeholder={subtask.id ? undefined : 'Ny underopgave'}
+                    onChange={(e) => updateSubtask(index, { title: e.target.value })}
+                    className="flex-1 rounded-lg bg-gray-700 px-3 py-2 text-sm text-white outline-none"
+                    maxLength={200}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeSubtask(index)}
+                    aria-label={`Delete "${deleteLabel}"`}
+                    className="rounded-lg px-2 py-2 text-sm text-gray-300 transition-colors hover:bg-gray-700"
+                  >
+                    Slet
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
         {/* Actions */}
         <div className="flex gap-2">
