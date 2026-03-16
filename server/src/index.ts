@@ -58,6 +58,9 @@ const apiApp = new Hono();
 apiApp.route('/', createTaskRoutes(taskService));
 app.route(`${basePath}/api`, apiApp);
 
+// Keep the canonical app URL within the service worker scope.
+app.get(basePath, (c) => c.redirect(`${basePath}/`, 308));
+
 // Serve static files (production build) - strip basePath prefix
 app.use(`${basePath}/*`, serveStatic({
   root: './dist/client',

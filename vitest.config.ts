@@ -6,6 +6,6 @@ export default defineConfig({
   test: {
     globals: true,
     setupFiles: ['./client/tests/setup.ts'],
-    exclude: ['e2e/**', 'node_modules/**'],
+    exclude: ['e2e/**', 'node_modules/**', '.worktrees/**', 'dist/**'],
   },
 });

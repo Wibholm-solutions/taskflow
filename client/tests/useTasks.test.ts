@@ -66,10 +66,15 @@ describe('useTasks', () => {
   });
 
   it('should optimistically remove task on complete', async () => {
-    vi.mocked(api.listTasks).mockResolvedValue({
-      active: [{ id: '1', title: 'Task 1', priority: 'default', isCompleted: false } as any],
-      upcoming: [],
-    });
+    vi.mocked(api.listTasks)
+      .mockResolvedValueOnce({
+        active: [{ id: '1', title: 'Task 1', priority: 'default', isCompleted: false } as any],
+        upcoming: [],
+      })
+      .mockResolvedValueOnce({
+        active: [],
+        upcoming: [],
+      });
     vi.mocked(api.completeTask).mockResolvedValue({
       completed: { id: '1', isCompleted: true } as any,
       nextInstance: null,
@@ -78,9 +83,12 @@ describe('useTasks', () => {
     const { result } = renderHook(() => useTasks());
     await waitFor(() => expect(result.current.active).toHaveLength(1));
 
-    act(() => { result.current.completeTask('1'); });
+    await act(async () => {
+      await result.current.completeTask('1');
+    });
 
     expect(result.current.active).toHaveLength(0);
+    expect(vi.mocked(api.completeTask)).toHaveBeenCalledWith('1');
   });
 
   it('should rollback on complete failure', async () => {

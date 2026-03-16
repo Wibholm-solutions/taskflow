@@ -5,29 +5,16 @@ test.describe('PWA offline', () => {
     const context = await browser.newContext();
     const page = await context.newPage();
 
-    // First visit to prime the service worker cache
+    // First visit primes the cache and should land on the scoped app URL.
     await page.goto('http://localhost:3000/todo');
+    await expect(page).toHaveURL('http://localhost:3000/todo/');
     await expect(page.getByText('TaskFlow')).toBeVisible();
 
-    // Check if service worker is available and wait for activation
-    const swActivated = await page.evaluate(async () => {
+    await page.waitForFunction(async () => {
       if (!navigator.serviceWorker) return false;
-      try {
-        const reg = await Promise.race([
-          navigator.serviceWorker.ready,
-          new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
-        ]);
-        return reg !== null && !!(reg as ServiceWorkerRegistration).active;
-      } catch {
-        return false;
-      }
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      return registrations.some((registration) => Boolean(registration.active));
     });
-
-    if (!swActivated) {
-      await context.close();
-      test.skip(true, 'Service worker did not activate in test environment');
-      return;
-    }
 
     // Give SW time to cache assets
     await page.waitForTimeout(2000);
