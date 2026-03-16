@@ -52,7 +52,7 @@ Manual order only applies within tasks that share both urgency and priority. Use
 
 Within the urgent section, manual order explicitly replaces the current per-date ordering. An overdue urgent task may therefore appear below another urgent task of the same priority if the user places it there.
 
-Each task stores only one persistent `sortOrder`. If a task later moves to a different bucket because its priority, deadline, or `notBefore` changes, it keeps the same field but is reassigned to the end of its new bucket when that mutation is saved. If a task changes buckets only because time passes, such as becoming urgent at midnight, its existing `sortOrder` remains unchanged. The system does not attempt to remember separate historical orders per bucket.
+Each task stores only one persistent `sortOrder`. If a task later moves to a different bucket because its priority, deadline, or `notBefore` changes, it keeps the same field but is reassigned to the end of its new bucket when that mutation is saved. If a task changes buckets only because time passes, such as becoming urgent at midnight, its existing `sortOrder` remains unchanged and ordering in the destination bucket is resolved deterministically with stable fallback keys. The system does not attempt to remember separate historical orders per bucket.
 
 ## Data Model
 
@@ -104,7 +104,8 @@ Keep ordering logic in the server so the client never becomes the source of trut
 
 - Keep `upcoming` sorting unchanged
 - Keep active grouping by urgency and priority
-- Use `sortOrder` as the final tiebreaker within each active bucket
+- Use `sortOrder` as the primary custom-order key within each active bucket
+- Use `createdAt`, then `id`, as stable fallback sort keys after `sortOrder` so time-driven bucket changes remain deterministic without background rewrites
 - Normalize persisted `deadline` and `notBefore` values to canonical `YYYY-MM-DD` strings before bucket comparison logic depends on them
 
 ### Reorder tasks
@@ -199,6 +200,7 @@ Add coverage for:
 
 - preserving current ordering during migration/backfill
 - sorting active tasks by urgency, then priority, then `sortOrder`, including urgent tasks no longer sorted by exact date once manual ordering is present
+- stable fallback ordering by `createdAt`, then `id`, when `sortOrder` ties occur
 - leaving upcoming sorting unchanged
 - successful reorder persistence for a single bucket
 - rejecting reorder payloads with missing ids, duplicate ids, cross-bucket ids, upcoming ids, or completed ids
@@ -209,6 +211,7 @@ Add coverage for:
 - recurring completion flows that create a next instance at the end of its destination bucket
 - recurring completion flows that reuse an existing future instance and reassign its `sortOrder` when its destination bucket changes
 - date-only bucket changes caused by time passing, where `sortOrder` remains unchanged
+- time-driven transitions from `Kommende` to `Aktive` or from non-urgent to urgent, using the stable fallback ordering without rewriting rows
 
 ### Client tests
 
