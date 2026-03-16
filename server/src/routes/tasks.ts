@@ -130,6 +130,18 @@ function validateCompleteInput(body: any): string | null {
   return null;
 }
 
+function validateReorderInput(body: any): string | null {
+  if (!isObject(body)) return 'invalid reorder payload';
+  if (!Array.isArray(body.taskIds) || body.taskIds.length === 0) {
+    return 'invalid reorder payload';
+  }
+  if (!body.taskIds.every((id: unknown) => typeof id === 'string')) {
+    return 'invalid reorder payload';
+  }
+
+  return null;
+}
+
 async function readJsonBody(
   c: any,
   options: { optional: boolean }
@@ -219,6 +231,26 @@ export function createTaskRoutes(service: TaskService) {
       return c.json(result);
     } catch (e: any) {
       if (e.message === 'not found') return c.json({ error: 'not found' }, 404);
+      throw e;
+    }
+  });
+
+  routes.post('/tasks/reorder', async (c) => {
+    const parsed = await readJsonBody(c, { optional: false });
+    if (parsed.error || parsed.body === null) {
+      return c.json({ error: parsed.error ?? 'invalid reorder payload' }, 400);
+    }
+
+    const validationError = validateReorderInput(parsed.body);
+    if (validationError) return c.json({ error: validationError }, 400);
+
+    try {
+      await service.reorder(parsed.body.taskIds);
+      return c.body(null, 200);
+    } catch (e: any) {
+      if (e.message === 'invalid reorder payload') {
+        return c.json({ error: 'invalid reorder payload' }, 400);
+      }
       throw e;
     }
   });

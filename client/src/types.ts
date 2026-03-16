@@ -43,6 +43,7 @@ export interface Task {
   notBefore: string | null;
   recurrenceGroupId: string | null;
   recurrenceRule: RecurrenceRule | null;
+  sortOrder: number;
   createdAt: string;
   updatedAt: string;
   subtasks: Subtask[];

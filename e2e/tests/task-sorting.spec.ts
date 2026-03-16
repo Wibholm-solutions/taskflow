@@ -57,4 +57,36 @@ test.describe('Task sorting', () => {
     await expect(upcomingItem).toBeVisible();
     await expect(upcomingItem).toContainText('Kommende opgave');
   });
+
+  test('manual reordering persists within one active bucket and keeps other buckets unchanged', async ({ page, apiHelper }) => {
+    const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+
+    const high = await apiHelper.createTask({ title: 'Hoj prioritet', priority: 'high' });
+    const alpha = await apiHelper.createTask({ title: 'Alpha', priority: 'default' });
+    const beta = await apiHelper.createTask({ title: 'Beta', priority: 'default' });
+    const upcoming = await apiHelper.createTask({ title: 'Senere', notBefore: tomorrow });
+
+    await page.goto('/todo');
+
+    await page.getByTestId(`task-drag-handle-${alpha.id}`).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+
+    await page.getByTestId(`task-drag-handle-${alpha.id}`).dragTo(page.getByTestId(`task-${beta.id}`));
+
+    await expect(page.locator('[data-bucket] .text-white.text-sm')).toHaveText([
+      'Hoj prioritet',
+      'Beta',
+      'Alpha',
+    ]);
+
+    await expect(page.getByTestId(`task-drag-handle-${upcoming.id}`)).toHaveCount(0);
+
+    await page.reload();
+
+    await expect(page.locator('[data-bucket] .text-white.text-sm')).toHaveText([
+      'Hoj prioritet',
+      'Beta',
+      'Alpha',
+    ]);
+  });
 });

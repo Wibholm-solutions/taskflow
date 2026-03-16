@@ -19,6 +19,7 @@ const CREATE_TABLE_SQL = `
     not_before TEXT,
     recurrence_group_id TEXT,
     recurrence_rule TEXT,
+    sort_order INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
@@ -197,6 +198,93 @@ describe('Task API', () => {
         'First subtask',
         'Second subtask',
       ]);
+    });
+  });
+
+  describe('POST /todo/api/tasks/reorder', () => {
+    it('reorders tasks inside one active bucket', async () => {
+      const firstRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'First' }),
+      });
+      const secondRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Second' }),
+      });
+
+      const first = await firstRes.json();
+      const second = await secondRes.json();
+
+      const res = await app.request('/todo/api/tasks/reorder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskIds: [second.id, first.id] }),
+      });
+
+      expect(res.status).toBe(200);
+
+      const listRes = await app.request('/todo/api/tasks');
+      const body = await listRes.json();
+      expect(body.active.map((task: any) => task.title)).toEqual(['Second', 'First']);
+    });
+
+    it('rejects duplicate, missing, upcoming, completed, and cross-bucket ids', async () => {
+      const firstRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'First', priority: 'default' }),
+      });
+      const secondRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Second', priority: 'default' }),
+      });
+      const upcomingRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Upcoming', notBefore: '2026-03-17' }),
+      });
+      const completedRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Completed' }),
+      });
+      const highRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'High', priority: 'high' }),
+      });
+
+      const first = await firstRes.json();
+      const second = await secondRes.json();
+      const upcoming = await upcomingRes.json();
+      const completed = await completedRes.json();
+      const high = await highRes.json();
+
+      await app.request(`/todo/api/tasks/${completed.id}/complete`, { method: 'POST' });
+
+      for (const payload of [
+        { taskIds: [first.id, first.id] },
+        { taskIds: [first.id] },
+        { taskIds: [first.id, upcoming.id] },
+        { taskIds: [first.id, completed.id] },
+        { taskIds: [first.id, high.id] },
+      ]) {
+        const res = await app.request('/todo/api/tasks/reorder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        expect(res.status).toBe(400);
+        expect(await res.json()).toEqual({ error: 'invalid reorder payload' });
+      }
+
+      const listRes = await app.request('/todo/api/tasks');
+      const body = await listRes.json();
+      expect(body.active.map((task: any) => task.title)).toEqual(['High', 'First', 'Second']);
     });
   });
 

@@ -37,6 +37,25 @@ function taskExistsInState(active: Task[], upcoming: Task[], id: string): boolea
   return active.some((task) => task.id === id) || upcoming.some((task) => task.id === id);
 }
 
+function reorderActiveTasks(tasks: Task[], taskIds: string[]): Task[] {
+  const taskMap = new Map(tasks.map((task) => [task.id, task]));
+  const reorderedBucket = taskIds
+    .map((id) => taskMap.get(id))
+    .filter((task): task is Task => task !== undefined);
+  const reorderedIds = new Set(taskIds);
+  let bucketIndex = 0;
+
+  return tasks.map((task) => {
+    if (!reorderedIds.has(task.id)) {
+      return task;
+    }
+
+    const reorderedTask = reorderedBucket[bucketIndex];
+    bucketIndex += 1;
+    return reorderedTask;
+  });
+}
+
 export function useTasks() {
   const [active, setActive] = useState<Task[]>([]);
   const [upcoming, setUpcoming] = useState<Task[]>([]);
@@ -178,6 +197,22 @@ export function useTasks() {
     }
   }, [active, upcoming, refresh]);
 
+  const reorderTasks = useCallback(async (taskIds: string[]) => {
+    const prevActive = active;
+    const reordered = reorderActiveTasks(active, taskIds);
+
+    setActive(reordered);
+
+    try {
+      await api.reorderTasks(taskIds);
+      await refresh();
+    } catch (e: any) {
+      setActive(prevActive);
+      setError(e.message);
+      await refresh();
+    }
+  }, [active, refresh]);
+
   return {
     active,
     upcoming,
@@ -192,5 +227,6 @@ export function useTasks() {
     deleteTask,
     createTask,
     updateTask,
+    reorderTasks,
   };
 }

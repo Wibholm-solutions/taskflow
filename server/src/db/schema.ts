@@ -13,6 +13,7 @@ export const tasks = sqliteTable('tasks', {
   notBefore: text('not_before'),
   recurrenceGroupId: text('recurrence_group_id'),
   recurrenceRule: text('recurrence_rule'),
+  sortOrder: integer('sort_order').notNull().default(0),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
 });

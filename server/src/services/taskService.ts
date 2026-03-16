@@ -7,6 +7,7 @@ import type {
   CompleteTaskResult,
   CreateTaskInput,
   Priority,
+  ReorderTasksInput,
   SubtaskInput,
   SubtaskResponse,
   TaskResponse,
@@ -17,6 +18,97 @@ type TaskRow = typeof tasks.$inferSelect;
 type SubtaskRow = typeof subtasks.$inferSelect;
 
 const PRIORITY_ORDER: Record<string, number> = { high: 0, default: 1, low: 2 };
+
+function normalizeDate(value?: string | null): string | null {
+  if (!value) return null;
+  return new Date(value).toISOString().slice(0, 10);
+}
+
+function compareUrgencyAndPriority(a: TaskResponse, b: TaskResponse, today: string): number {
+  const aDue = Boolean(a.deadline && a.deadline <= today);
+  const bDue = Boolean(b.deadline && b.deadline <= today);
+  if (aDue && bDue) {
+    const deadlineComparison = a.deadline!.localeCompare(b.deadline!);
+    if (deadlineComparison !== 0) return deadlineComparison;
+  } else if (aDue !== bDue) {
+    return aDue ? -1 : 1;
+  }
+
+  return (PRIORITY_ORDER[a.priority] ?? 1) - (PRIORITY_ORDER[b.priority] ?? 1);
+}
+
+type BucketTaskState = {
+  id: string;
+  deadline: string | null;
+  priority: Priority;
+  isCompleted: boolean;
+  notBefore: string | null;
+  sortOrder: number;
+  createdAt: string;
+};
+
+function toBucketTaskState(task: BucketTaskState): BucketTaskState {
+  return {
+    ...task,
+    deadline: normalizeDate(task.deadline),
+    notBefore: normalizeDate(task.notBefore),
+  };
+}
+
+function getToday(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function getBucketKey(task: BucketTaskState, today: string): string | null {
+  if (task.isCompleted) return null;
+  if (task.notBefore && task.notBefore > today) return null;
+
+  const urgency = task.deadline && task.deadline <= today ? `due:${task.deadline}` : 'active';
+  return `${urgency}:${task.priority}`;
+}
+
+function compareBucketTaskState(a: BucketTaskState, b: BucketTaskState): number {
+  if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+  if (a.createdAt !== b.createdAt) return a.createdAt.localeCompare(b.createdAt);
+  return a.id.localeCompare(b.id);
+}
+
+function toStateFromRow(row: TaskRow): BucketTaskState {
+  return toBucketTaskState({
+    id: row.id,
+    deadline: row.deadline,
+    priority: row.priority as Priority,
+    isCompleted: row.isCompleted === 1,
+    notBefore: row.notBefore,
+    sortOrder: row.sortOrder,
+    createdAt: row.createdAt,
+  });
+}
+
+async function nextSortOrderForBucket(
+  db: any,
+  task: Omit<BucketTaskState, 'sortOrder' | 'createdAt'>
+): Promise<number> {
+  const today = getToday();
+  const bucketKey = getBucketKey(
+    toBucketTaskState({
+      ...task,
+      sortOrder: 0,
+      createdAt: '',
+    }),
+    today
+  );
+
+  if (!bucketKey) return 0;
+
+  const rows = await db.select().from(tasks).where(eq(tasks.isCompleted, 0));
+  const bucketRows = rows
+    .map((row: TaskRow) => toStateFromRow(row))
+    .filter((row) => getBucketKey(row, today) === bucketKey);
+
+  if (bucketRows.length === 0) return 0;
+  return Math.max(...bucketRows.map((row) => row.sortOrder)) + 1;
+}
 
 function toSubtaskResponse(row: SubtaskRow): SubtaskResponse {
   return {
@@ -35,13 +127,14 @@ function toTaskResponse(row: TaskRow, childSubtasks: SubtaskRow[]): TaskResponse
     id: row.id,
     title: row.title,
     description: row.description,
-    deadline: row.deadline,
+    deadline: normalizeDate(row.deadline),
     priority: row.priority as Priority,
     isCompleted: row.isCompleted === 1,
     completedAt: row.completedAt,
-    notBefore: row.notBefore,
+    notBefore: normalizeDate(row.notBefore),
     recurrenceGroupId: row.recurrenceGroupId,
     recurrenceRule: row.recurrenceRule ? JSON.parse(row.recurrenceRule) : null,
+    sortOrder: row.sortOrder,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     subtasks: childSubtasks.map(toSubtaskResponse),
@@ -139,17 +232,27 @@ export class TaskService {
     const hasRecurrence = !!input.recurrenceRule;
     const recurrenceGroupId = hasRecurrence ? nanoid() : null;
     const now = new Date().toISOString();
+    const normalizedDeadline = normalizeDate(input.deadline);
+    const normalizedNotBefore = normalizeDate(input.notBefore);
+    const sortOrder = await nextSortOrderForBucket(this.db, {
+      id,
+      deadline: normalizedDeadline,
+      priority: input.priority ?? 'default',
+      isCompleted: false,
+      notBefore: normalizedNotBefore,
+    });
 
     this.db.transaction((tx: any) => {
       tx.insert(tasks).values({
         id,
         title: input.title,
         description: input.description ?? null,
-        deadline: input.deadline ?? null,
+        deadline: normalizedDeadline,
         priority: input.priority ?? 'default',
-        notBefore: input.notBefore ?? null,
+        notBefore: normalizedNotBefore,
         recurrenceGroupId,
         recurrenceRule: input.recurrenceRule ? JSON.stringify(input.recurrenceRule) : null,
+        sortOrder,
         createdAt: now,
         updatedAt: now,
       }).run();
@@ -188,12 +291,11 @@ export class TaskService {
     }
 
     active.sort((a, b) => {
-      const aDue = a.deadline && a.deadline <= today;
-      const bDue = b.deadline && b.deadline <= today;
-      if (aDue && bDue) return a.deadline!.localeCompare(b.deadline!);
-      if (aDue && !bDue) return -1;
-      if (!aDue && bDue) return 1;
-      return (PRIORITY_ORDER[a.priority] ?? 1) - (PRIORITY_ORDER[b.priority] ?? 1);
+      const bucketDiff = compareUrgencyAndPriority(a, b, today);
+      if (bucketDiff !== 0) return bucketDiff;
+      if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+      if (a.createdAt !== b.createdAt) return a.createdAt.localeCompare(b.createdAt);
+      return a.id.localeCompare(b.id);
     });
 
     upcoming.sort((a, b) => (a.notBefore ?? '').localeCompare(b.notBefore ?? ''));
@@ -206,6 +308,22 @@ export class TaskService {
     if (!existing) throw new Error('not found');
 
     const now = new Date().toISOString();
+    const today = getToday();
+    const nextState = toBucketTaskState({
+      id: existing.id,
+      deadline: input.deadline !== undefined ? normalizeDate(input.deadline) : existing.deadline,
+      priority: input.priority ?? existing.priority,
+      isCompleted: existing.isCompleted,
+      notBefore: input.notBefore !== undefined ? normalizeDate(input.notBefore) : existing.notBefore,
+      sortOrder: existing.sortOrder,
+      createdAt: existing.createdAt,
+    });
+    const existingBucket = getBucketKey(toBucketTaskState(existing), today);
+    const nextBucket = getBucketKey(nextState, today);
+    const nextSortOrder =
+      existingBucket !== nextBucket && nextBucket
+        ? await nextSortOrderForBucket(this.db, nextState)
+        : existing.sortOrder;
 
     this.db.transaction((tx: any) => {
       const updates: Record<string, any> = {
@@ -214,11 +332,14 @@ export class TaskService {
 
       if (input.title !== undefined) updates.title = input.title;
       if (input.description !== undefined) updates.description = input.description;
-      if (input.deadline !== undefined) updates.deadline = input.deadline;
+      if (input.deadline !== undefined) updates.deadline = normalizeDate(input.deadline);
       if (input.priority !== undefined) updates.priority = input.priority;
-      if (input.notBefore !== undefined) updates.notBefore = input.notBefore;
+      if (input.notBefore !== undefined) updates.notBefore = normalizeDate(input.notBefore);
       if (input.recurrenceRule !== undefined) {
         updates.recurrenceRule = input.recurrenceRule ? JSON.stringify(input.recurrenceRule) : null;
+      }
+      if (existingBucket !== nextBucket && nextBucket) {
+        updates.sortOrder = nextSortOrder;
       }
 
       tx.update(tasks).set(updates).where(eq(tasks.id, id)).run();
@@ -326,8 +447,8 @@ export class TaskService {
         nextInstanceId = existingInstances[0].id;
         tx.update(tasks)
           .set({
-            notBefore: nextDate,
-            deadline: existing.deadline ? nextDate : null,
+            notBefore: normalizeDate(nextDate),
+            deadline: existing.deadline ? normalizeDate(nextDate) : null,
             updatedAt: now,
           })
           .where(eq(tasks.id, existingInstances[0].id))
@@ -352,11 +473,12 @@ export class TaskService {
         id: nextInstanceId,
         title: existing.title,
         description: existing.description,
-        deadline: existing.deadline ? nextDate : null,
+        deadline: existing.deadline ? normalizeDate(nextDate) : null,
         priority: existing.priority,
-        notBefore: nextDate,
+        notBefore: normalizeDate(nextDate),
         recurrenceGroupId: existing.recurrenceGroupId,
         recurrenceRule: JSON.stringify(existing.recurrenceRule),
+        sortOrder: 0,
         createdAt: now,
         updatedAt: now,
       }).run();
@@ -372,5 +494,52 @@ export class TaskService {
       nextInstance: nextInstanceId ? await getTaskAggregate(this.db, nextInstanceId) : null,
       requiresConfirmation: false,
     };
+  }
+
+  async reorder(taskIds: ReorderTasksInput['taskIds']): Promise<void> {
+    if (!Array.isArray(taskIds) || taskIds.length === 0) {
+      throw new Error('invalid reorder payload');
+    }
+
+    if (new Set(taskIds).size !== taskIds.length) {
+      throw new Error('invalid reorder payload');
+    }
+
+    const rows = await this.db.select().from(tasks).where(eq(tasks.isCompleted, 0));
+    const states = rows.map((row: TaskRow) => toStateFromRow(row));
+    const stateById = new Map(states.map((state) => [state.id, state]));
+    const selectedStates = taskIds.map((id) => stateById.get(id)).filter(Boolean) as BucketTaskState[];
+
+    if (selectedStates.length !== taskIds.length) {
+      throw new Error('invalid reorder payload');
+    }
+
+    const today = getToday();
+    const bucketKey = getBucketKey(selectedStates[0], today);
+    if (!bucketKey || selectedStates.some((state) => getBucketKey(state, today) !== bucketKey)) {
+      throw new Error('invalid reorder payload');
+    }
+
+    const fullBucket = states
+      .filter((state) => getBucketKey(state, today) === bucketKey)
+      .sort(compareBucketTaskState);
+
+    if (fullBucket.length !== taskIds.length) {
+      throw new Error('invalid reorder payload');
+    }
+
+    if (fullBucket.some((state) => !taskIds.includes(state.id))) {
+      throw new Error('invalid reorder payload');
+    }
+
+    const now = new Date().toISOString();
+    this.db.transaction((tx: any) => {
+      taskIds.forEach((taskId, index) => {
+        tx.update(tasks)
+          .set({ sortOrder: index, updatedAt: now })
+          .where(eq(tasks.id, taskId))
+          .run();
+      });
+    });
   }
 }

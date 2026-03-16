@@ -27,6 +27,7 @@ sqlite.exec(`
     not_before TEXT,
     recurrence_group_id TEXT,
     recurrence_rule TEXT,
+    sort_order INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
@@ -42,6 +43,11 @@ sqlite.exec(`
     FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
   )
 `);
+
+const taskColumns = sqlite.prepare('PRAGMA table_info(tasks)').all() as Array<{ name: string }>;
+if (!taskColumns.some((column) => column.name === 'sort_order')) {
+  sqlite.exec('ALTER TABLE tasks ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0');
+}
 
 const taskService = new TaskService(db);
 
