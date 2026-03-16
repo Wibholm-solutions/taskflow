@@ -52,7 +52,7 @@ Manual order only applies within tasks that share both urgency and priority. Use
 
 Within the urgent section, manual order explicitly replaces the current per-date ordering. An overdue urgent task may therefore appear below another urgent task of the same priority if the user places it there.
 
-Each task stores only one persistent `sortOrder`. If a task later moves to a different bucket because its priority, deadline, or `notBefore` changes, it keeps the same field but is reassigned to the end of its new bucket when that mutation is saved. The system does not attempt to remember separate historical orders per bucket.
+Each task stores only one persistent `sortOrder`. If a task later moves to a different bucket because its priority, deadline, or `notBefore` changes, it keeps the same field but is reassigned to the end of its new bucket when that mutation is saved. If a task changes buckets only because time passes, such as becoming urgent at midnight, its existing `sortOrder` remains unchanged. The system does not attempt to remember separate historical orders per bucket.
 
 ## Data Model
 
@@ -67,9 +67,12 @@ Field requirements:
 Behavior:
 
 - New tasks receive a `sort_order` that places them at the end of their current sortable bucket
+- New upcoming tasks also receive a non-null `sort_order`, but that value is inert while they remain in `Kommende`
 - Existing tasks should receive stable values during migration so current list order is preserved initially
 - Existing tasks that change priority, deadline, or `notBefore` and therefore move between active buckets are reassigned to the end of the destination bucket
+- Existing tasks that move into `Kommende` retain a non-null `sort_order` without affecting upcoming list sorting
 - Recurring next instances are created at the end of their destination bucket
+- Recurring next instances that land in `Kommende` also receive a non-null `sort_order`, which becomes relevant only if they later appear in `Aktive`
 
 ### Rollout and schema update
 
@@ -87,6 +90,7 @@ Backfill rule:
 
 - Completed tasks may receive any stable value because they do not participate in active ordering
 - Incomplete tasks should be assigned `sort_order` values that preserve the order the current app would return immediately before the feature ships
+- When the current implementation has an undefined tie, backfill should break ties deterministically by `created_at`, then `id`
 
 ## API and Service Design
 
@@ -204,6 +208,7 @@ Add coverage for:
 - canonical date normalization for `deadline` and `notBefore` before ordering logic runs
 - recurring completion flows that create a next instance at the end of its destination bucket
 - recurring completion flows that reuse an existing future instance and reassign its `sortOrder` when its destination bucket changes
+- date-only bucket changes caused by time passing, where `sortOrder` remains unchanged
 
 ### Client tests
 
