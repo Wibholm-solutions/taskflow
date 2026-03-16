@@ -7,5 +7,25 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./client/tests/setup.ts'],
     exclude: ['e2e/**', 'node_modules/**', '.worktrees/**', 'dist/**'],
+    coverage: {
+      provider: 'v8',
+      all: true,
+      include: ['client/src/**/*.{ts,tsx}', 'server/src/**/*.ts'],
+      exclude: [
+        'client/tests/**',
+        'server/tests/**',
+        '**/*.test.{ts,tsx}',
+        '**/*.spec.{ts,tsx}',
+        'client/src/main.tsx',
+        'server/src/index.ts',
+      ],
+      reporter: ['text', 'html'],
+      thresholds: {
+        lines: 63.84,
+        statements: 63.84,
+        functions: 66.66,
+        branches: 78.16,
+      },
+    },
   },
 });
