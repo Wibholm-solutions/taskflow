@@ -88,7 +88,7 @@ describe('useTasks', () => {
     });
 
     expect(result.current.active).toHaveLength(0);
-    expect(vi.mocked(api.completeTask)).toHaveBeenCalledWith('1');
+    expect(vi.mocked(api.completeTask)).toHaveBeenCalledWith('1', undefined);
   });
 
   it('should rollback on complete failure', async () => {
