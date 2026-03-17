@@ -87,7 +87,8 @@ function toStateFromRow(row: TaskRow): BucketTaskState {
 
 async function nextSortOrderForBucket(
   db: any,
-  task: Omit<BucketTaskState, 'sortOrder' | 'createdAt'>
+  task: Omit<BucketTaskState, 'sortOrder' | 'createdAt'>,
+  userId: string
 ): Promise<number> {
   const today = getToday();
   const bucketKey = getBucketKey(
@@ -101,7 +102,7 @@ async function nextSortOrderForBucket(
 
   if (!bucketKey) return 0;
 
-  const rows = await db.select().from(tasks).where(eq(tasks.isCompleted, 0));
+  const rows = await db.select().from(tasks).where(and(eq(tasks.isCompleted, 0), eq(tasks.userId, userId)));
   const bucketRows = rows
     .map((row: TaskRow) => toStateFromRow(row))
     .filter((row) => getBucketKey(row, today) === bucketKey);
@@ -198,8 +199,8 @@ async function listSubtasks(db: any, taskIds: string[]): Promise<SubtaskRow[]> {
     .orderBy(asc(subtasks.createdAt), asc(subtasks.id));
 }
 
-async function getTaskAggregate(db: any, id: string): Promise<TaskResponse | null> {
-  const [taskRow] = await db.select().from(tasks).where(eq(tasks.id, id));
+async function getTaskAggregate(db: any, id: string, userId: string): Promise<TaskResponse | null> {
+  const [taskRow] = await db.select().from(tasks).where(and(eq(tasks.id, id), eq(tasks.userId, userId)));
   if (!taskRow) return null;
 
   const subtaskRows = await listSubtasks(db, [id]);
@@ -227,7 +228,7 @@ async function getTaskAggregates(db: any, taskRows: TaskRow[]): Promise<TaskResp
 export class TaskService {
   constructor(private db: any) {}
 
-  async create(input: CreateTaskInput): Promise<TaskResponse> {
+  async create(input: CreateTaskInput, userId: string): Promise<TaskResponse> {
     const id = nanoid();
     const hasRecurrence = !!input.recurrenceRule;
     const recurrenceGroupId = hasRecurrence ? nanoid() : null;
@@ -240,11 +241,12 @@ export class TaskService {
       priority: input.priority ?? 'default',
       isCompleted: false,
       notBefore: normalizedNotBefore,
-    });
+    }, userId);
 
     this.db.transaction((tx: any) => {
       tx.insert(tasks).values({
         id,
+        userId,
         title: input.title,
         description: input.description ?? null,
         deadline: normalizedDeadline,
@@ -264,18 +266,18 @@ export class TaskService {
       }
     });
 
-    return (await getTaskAggregate(this.db, id))!;
+    return (await getTaskAggregate(this.db, id, userId))!;
   }
 
-  async getById(id: string): Promise<TaskResponse | null> {
-    return getTaskAggregate(this.db, id);
+  async getById(id: string, userId: string): Promise<TaskResponse | null> {
+    return getTaskAggregate(this.db, id, userId);
   }
 
-  async listTasks(): Promise<{ active: TaskResponse[]; upcoming: TaskResponse[] }> {
+  async listTasks(userId: string): Promise<{ active: TaskResponse[]; upcoming: TaskResponse[] }> {
     const rows = await this.db
       .select()
       .from(tasks)
-      .where(eq(tasks.isCompleted, 0));
+      .where(and(eq(tasks.isCompleted, 0), eq(tasks.userId, userId)));
     const taskResponses = await getTaskAggregates(this.db, rows);
 
     const today = new Date().toISOString().split('T')[0];
@@ -303,8 +305,8 @@ export class TaskService {
     return { active, upcoming };
   }
 
-  async update(id: string, input: UpdateTaskInput): Promise<TaskResponse> {
-    const existing = await getTaskAggregate(this.db, id);
+  async update(id: string, input: UpdateTaskInput, userId: string): Promise<TaskResponse> {
+    const existing = await getTaskAggregate(this.db, id, userId);
     if (!existing) throw new Error('not found');
 
     const now = new Date().toISOString();
@@ -322,7 +324,7 @@ export class TaskService {
     const nextBucket = getBucketKey(nextState, today);
     const nextSortOrder =
       existingBucket !== nextBucket && nextBucket
-        ? await nextSortOrderForBucket(this.db, nextState)
+        ? await nextSortOrderForBucket(this.db, nextState, userId)
         : existing.sortOrder;
 
     this.db.transaction((tx: any) => {
@@ -392,18 +394,24 @@ export class TaskService {
       }
     });
 
-    return (await getTaskAggregate(this.db, id))!;
+    return (await getTaskAggregate(this.db, id, userId))!;
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(id: string, userId: string): Promise<void> {
     this.db.transaction((tx: any) => {
+      const taskRow = tx
+        .select({ id: tasks.id })
+        .from(tasks)
+        .where(and(eq(tasks.id, id), eq(tasks.userId, userId)))
+        .get();
+      if (!taskRow) return;
       tx.delete(subtasks).where(eq(subtasks.taskId, id)).run();
       tx.delete(tasks).where(eq(tasks.id, id)).run();
     });
   }
 
-  async complete(id: string, options: CompleteTaskOptions = {}): Promise<CompleteTaskResult> {
-    const existing = await getTaskAggregate(this.db, id);
+  async complete(id: string, options: CompleteTaskOptions = {}, userId: string): Promise<CompleteTaskResult> {
+    const existing = await getTaskAggregate(this.db, id, userId);
     if (!existing) throw new Error('not found');
 
     const openSubtasks = existing.subtasks.filter((subtask) => !subtask.isCompleted);
@@ -440,7 +448,13 @@ export class TaskService {
       const existingInstances = tx
         .select()
         .from(tasks)
-        .where(and(eq(tasks.recurrenceGroupId, existing.recurrenceGroupId), eq(tasks.isCompleted, 0)))
+        .where(
+          and(
+            eq(tasks.recurrenceGroupId, existing.recurrenceGroupId),
+            eq(tasks.isCompleted, 0),
+            eq(tasks.userId, userId)
+          )
+        )
         .all();
 
       if (existingInstances.length > 0) {
@@ -471,6 +485,7 @@ export class TaskService {
       nextInstanceId = nanoid();
       tx.insert(tasks).values({
         id: nextInstanceId,
+        userId,
         title: existing.title,
         description: existing.description,
         deadline: existing.deadline ? normalizeDate(nextDate) : null,
@@ -490,13 +505,13 @@ export class TaskService {
     });
 
     return {
-      completed: await getTaskAggregate(this.db, id),
-      nextInstance: nextInstanceId ? await getTaskAggregate(this.db, nextInstanceId) : null,
+      completed: await getTaskAggregate(this.db, id, userId),
+      nextInstance: nextInstanceId ? await getTaskAggregate(this.db, nextInstanceId, userId) : null,
       requiresConfirmation: false,
     };
   }
 
-  async reorder(taskIds: ReorderTasksInput['taskIds']): Promise<void> {
+  async reorder(taskIds: ReorderTasksInput['taskIds'], userId: string): Promise<void> {
     if (!Array.isArray(taskIds) || taskIds.length === 0) {
       throw new Error('invalid reorder payload');
     }
@@ -505,7 +520,7 @@ export class TaskService {
       throw new Error('invalid reorder payload');
     }
 
-    const rows = await this.db.select().from(tasks).where(eq(tasks.isCompleted, 0));
+    const rows = await this.db.select().from(tasks).where(and(eq(tasks.isCompleted, 0), eq(tasks.userId, userId)));
     const states = rows.map((row: TaskRow) => toStateFromRow(row));
     const stateById = new Map(states.map((state) => [state.id, state]));
     const selectedStates = taskIds.map((id) => stateById.get(id)).filter(Boolean) as BucketTaskState[];

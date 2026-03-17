@@ -42,6 +42,7 @@ function setupTestDb() {
 describe('TaskService', () => {
   let sqlite: Database.Database;
   let service: TaskService;
+  const userId = 'default';
 
   beforeEach(() => {
     const setup = setupTestDb();
@@ -59,11 +60,11 @@ describe('TaskService', () => {
       const today = new Date().toISOString().split('T')[0];
       const nextWeek = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
 
-      await service.create({ title: 'Due today', deadline: today });
-      await service.create({ title: 'No deadline' });
-      await service.create({ title: 'Future task', notBefore: nextWeek });
+      await service.create({ title: 'Due today', deadline: today }, userId);
+      await service.create({ title: 'No deadline' }, userId);
+      await service.create({ title: 'Future task', notBefore: nextWeek }, userId);
 
-      const result = await service.listTasks();
+      const result = await service.listTasks(userId);
       expect(result.active).toHaveLength(2);
       expect(result.upcoming).toHaveLength(1);
       expect(result.upcoming[0].title).toBe('Future task');
@@ -73,12 +74,12 @@ describe('TaskService', () => {
       const today = new Date().toISOString().split('T')[0];
       const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
 
-      await service.create({ title: 'No deadline high', priority: 'high' });
-      await service.create({ title: 'Today default', deadline: today });
-      await service.create({ title: 'Yesterday low', deadline: yesterday, priority: 'low' });
-      await service.create({ title: 'No deadline default' });
+      await service.create({ title: 'No deadline high', priority: 'high' }, userId);
+      await service.create({ title: 'Today default', deadline: today }, userId);
+      await service.create({ title: 'Yesterday low', deadline: yesterday, priority: 'low' }, userId);
+      await service.create({ title: 'No deadline default' }, userId);
 
-      const result = await service.listTasks();
+      const result = await service.listTasks(userId);
       const titles = result.active.map((t) => t.title);
       expect(titles).toEqual([
         'Yesterday low',
@@ -91,11 +92,11 @@ describe('TaskService', () => {
     it('should not prioritize future deadlines in sorting', async () => {
       const nextWeek = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
 
-      await service.create({ title: 'Future deadline default', deadline: nextWeek });
-      await service.create({ title: 'No deadline high', priority: 'high' });
-      await service.create({ title: 'No deadline default' });
+      await service.create({ title: 'Future deadline default', deadline: nextWeek }, userId);
+      await service.create({ title: 'No deadline high', priority: 'high' }, userId);
+      await service.create({ title: 'No deadline default' }, userId);
 
-      const result = await service.listTasks();
+      const result = await service.listTasks(userId);
       const titles = result.active.map((t) => t.title);
       expect(titles).toEqual([
         'No deadline high',
@@ -105,11 +106,11 @@ describe('TaskService', () => {
     });
 
     it('should exclude completed tasks', async () => {
-      await service.create({ title: 'Active' });
-      const task = await service.create({ title: 'Will complete' });
-      await service.complete(task.id);
+      await service.create({ title: 'Active' }, userId);
+      const task = await service.create({ title: 'Will complete' }, userId);
+      await service.complete(task.id, {}, userId);
 
-      const result = await service.listTasks();
+      const result = await service.listTasks(userId);
       expect(result.active).toHaveLength(1);
       expect(result.active[0].title).toBe('Active');
     });
@@ -165,7 +166,7 @@ describe('TaskService', () => {
         '2026-03-16T08:04:00.000Z'
       );
 
-      const result = await service.listTasks();
+      const result = await service.listTasks(userId);
       expect(result.active.map((task) => task.title)).toEqual([
         'Urgent rank 1',
         'Urgent rank 2',
@@ -200,7 +201,7 @@ describe('TaskService', () => {
         '2026-03-16T08:01:00.000Z'
       );
 
-      const result = await service.listTasks();
+      const result = await service.listTasks(userId);
       expect(result.upcoming.map((task) => task.title)).toEqual([
         'Sooner upcoming',
         'Later upcoming',
@@ -214,13 +215,13 @@ describe('TaskService', () => {
       await service.create({
         title: 'Normalized active',
         deadline: '2026-03-16T18:45:00.000Z',
-      });
+      }, userId);
       await service.create({
         title: 'Normalized upcoming',
         notBefore: '2026-03-17T05:30:00.000Z',
-      });
+      }, userId);
 
-      const result = await service.listTasks();
+      const result = await service.listTasks(userId);
       expect(result.active[0].deadline).toBe('2026-03-16');
       expect(result.upcoming[0].notBefore).toBe('2026-03-17');
     });
@@ -228,7 +229,7 @@ describe('TaskService', () => {
 
   describe('create', () => {
     it('should create a task with defaults', async () => {
-      const task = await service.create({ title: 'Test' });
+      const task = await service.create({ title: 'Test' }, userId);
       expect(task.title).toBe('Test');
       expect(task.priority).toBe('default');
       expect(task.isCompleted).toBe(false);
@@ -240,7 +241,7 @@ describe('TaskService', () => {
       const task = await service.create({
         title: 'Weekly',
         recurrenceRule: { type: 'days_after', interval: 7 },
-      });
+      }, userId);
       expect(task.recurrenceGroupId).toBeTruthy();
       expect(task.recurrenceRule).toEqual({ type: 'days_after', interval: 7 });
     });
@@ -249,7 +250,7 @@ describe('TaskService', () => {
       const task = await service.create({
         title: 'Parent',
         subtasks: [{ title: 'First subtask' }, { title: '   ' }, { title: 'Second subtask' }],
-      });
+      }, userId);
 
       expect(task.subtasks.map((subtask) => subtask.title).sort()).toEqual([
         'First subtask',
@@ -266,12 +267,12 @@ describe('TaskService', () => {
         title: 'First high',
         priority: 'high',
         deadline: '2026-03-15',
-      });
+      }, userId);
       const second = await service.create({
         title: 'Second high',
         priority: 'high',
         deadline: '2026-03-15',
-      });
+      }, userId);
 
       expect(first.sortOrder).toBe(0);
       expect(second.sortOrder).toBe(1);
@@ -280,7 +281,7 @@ describe('TaskService', () => {
 
   describe('getById', () => {
     it('should return a parent task with ordered subtasks', async () => {
-      const task = await service.create({ title: 'Parent' });
+      const task = await service.create({ title: 'Parent' }, userId);
 
       sqlite
         .prepare(
@@ -300,7 +301,7 @@ describe('TaskService', () => {
           '2026-03-02T00:00:00.000Z'
         );
 
-      const aggregate = await service.getById(task.id);
+      const aggregate = await service.getById(task.id, userId);
 
       expect(aggregate?.subtasks.map((subtask) => subtask.title)).toEqual([
         'Older subtask',
@@ -311,8 +312,8 @@ describe('TaskService', () => {
 
   describe('complete', () => {
     it('should mark task as completed', async () => {
-      const task = await service.create({ title: 'To complete' });
-      const result = await service.complete(task.id);
+      const task = await service.create({ title: 'To complete' }, userId);
+      const result = await service.complete(task.id, {}, userId);
       expect(result.completed.isCompleted).toBe(true);
       expect(result.completed.completedAt).toBeTruthy();
     });
@@ -327,9 +328,9 @@ describe('TaskService', () => {
         priority: 'high',
         deadline: today,
         recurrenceRule: { type: 'days_after', interval: 7 },
-      });
+      }, userId);
 
-      const result = await service.complete(task.id);
+      const result = await service.complete(task.id, {}, userId);
       expect(result.nextInstance).toBeTruthy();
       expect(result.nextInstance!.title).toBe('Every 7 days');
       expect(result.nextInstance!.description).toBe('Recurring desc');
@@ -344,15 +345,15 @@ describe('TaskService', () => {
       const task = await service.create({
         title: 'Weekly',
         recurrenceRule: { type: 'days_after', interval: 7 },
-      });
+      }, userId);
 
-      const first = await service.complete(task.id);
+      const first = await service.complete(task.id, {}, userId);
       const nextId = first.nextInstance!.id;
 
-      const second = await service.complete(nextId);
+      const second = await service.complete(nextId, {}, userId);
       expect(second.nextInstance).toBeTruthy();
 
-      const allTasks = await service.listTasks();
+      const allTasks = await service.listTasks(userId);
       const uncompleted = [...allTasks.active, ...allTasks.upcoming];
       const groupTasks = uncompleted.filter(
         (t) => t.recurrenceGroupId === task.recurrenceGroupId
@@ -361,8 +362,8 @@ describe('TaskService', () => {
     });
 
     it('should not generate next instance for non-recurring task', async () => {
-      const task = await service.create({ title: 'One-time' });
-      const result = await service.complete(task.id);
+      const task = await service.create({ title: 'One-time' }, userId);
+      const result = await service.complete(task.id, {}, userId);
       expect(result.nextInstance).toBeNull();
     });
 
@@ -370,9 +371,9 @@ describe('TaskService', () => {
       const task = await service.create({
         title: 'No deadline recurring',
         recurrenceRule: { type: 'days_after', interval: 3 },
-      });
+      }, userId);
 
-      const result = await service.complete(task.id);
+      const result = await service.complete(task.id, {}, userId);
       expect(result.nextInstance!.deadline).toBeNull();
       expect(result.nextInstance!.notBefore).toBeTruthy();
     });
@@ -382,9 +383,9 @@ describe('TaskService', () => {
         title: 'Recurring parent',
         recurrenceRule: { type: 'days_after', interval: 7 },
         subtasks: [{ title: 'Pack bags' }, { title: 'Charge camera' }],
-      });
+      }, userId);
 
-      const result = await service.complete(task.id, { completeRemainingSubtasks: true });
+      const result = await service.complete(task.id, { completeRemainingSubtasks: true }, userId);
 
       expect(result.nextInstance?.subtasks.map((subtask) => subtask.title)).toEqual([
         'Pack bags',
@@ -400,9 +401,9 @@ describe('TaskService', () => {
         title: 'Recurring parent',
         recurrenceRule: { type: 'days_after', interval: 7 },
         subtasks: [{ title: 'Draft agenda' }, { title: 'Book room' }],
-      });
+      }, userId);
 
-      const first = await service.complete(task.id, { completeRemainingSubtasks: true });
+      const first = await service.complete(task.id, { completeRemainingSubtasks: true }, userId);
       expect(first.nextInstance?.subtasks.map((subtask) => subtask.title)).toEqual([
         'Draft agenda',
         'Book room',
@@ -412,12 +413,12 @@ describe('TaskService', () => {
         subtasks: {
           update: [{ id: first.nextInstance!.subtasks[0].id, isCompleted: true }],
         },
-      });
+      }, userId);
       expect(updatedNext.subtasks[0].isCompleted).toBe(true);
 
       const second = await service.complete(first.nextInstance!.id, {
         completeRemainingSubtasks: true,
-      });
+      }, userId);
 
       expect(second.nextInstance?.subtasks.map((subtask) => subtask.title)).toEqual([
         'Draft agenda',
@@ -432,15 +433,15 @@ describe('TaskService', () => {
       const task = await service.create({
         title: 'Parent',
         subtasks: [{ title: 'Open subtask' }],
-      });
+      }, userId);
 
-      const result = await service.complete(task.id);
+      const result = await service.complete(task.id, {}, userId);
 
       expect(result.requiresConfirmation).toBe(true);
       expect(result.completed).toBeNull();
       expect(result.nextInstance).toBeNull();
 
-      const unchanged = await service.getById(task.id);
+      const unchanged = await service.getById(task.id, userId);
       expect(unchanged?.isCompleted).toBe(false);
       expect(unchanged?.subtasks[0].isCompleted).toBe(false);
     });
@@ -449,9 +450,9 @@ describe('TaskService', () => {
       const task = await service.create({
         title: 'Parent',
         subtasks: [{ title: 'Open subtask' }, { title: 'Already done', isCompleted: true }],
-      });
+      }, userId);
 
-      const result = await service.complete(task.id, { completeRemainingSubtasks: true });
+      const result = await service.complete(task.id, { completeRemainingSubtasks: true }, userId);
 
       expect(result.requiresConfirmation).toBe(false);
       expect(result.completed?.isCompleted).toBe(true);
@@ -462,20 +463,20 @@ describe('TaskService', () => {
 
   describe('update', () => {
     it('should update task fields', async () => {
-      const task = await service.create({ title: 'Original' });
+      const task = await service.create({ title: 'Original' }, userId);
       const updated = await service.update(task.id, {
         title: 'Updated',
         priority: 'high',
         deadline: '2026-03-01',
-      });
+      }, userId);
       expect(updated.title).toBe('Updated');
       expect(updated.priority).toBe('high');
       expect(updated.deadline).toBe('2026-03-01');
     });
 
     it('should clear nullable fields with null', async () => {
-      const task = await service.create({ title: 'With deadline', deadline: '2026-03-01' });
-      const updated = await service.update(task.id, { deadline: null });
+      const task = await service.create({ title: 'With deadline', deadline: '2026-03-01' }, userId);
+      const updated = await service.update(task.id, { deadline: null }, userId);
       expect(updated.deadline).toBeNull();
     });
 
@@ -483,7 +484,7 @@ describe('TaskService', () => {
       const task = await service.create({
         title: 'Original',
         subtasks: [{ title: 'Keep me' }, { title: 'Remove me' }],
-      });
+      }, userId);
 
       const [keepSubtask, removeSubtask] = task.subtasks;
       const updated = await service.update(task.id, {
@@ -493,7 +494,7 @@ describe('TaskService', () => {
           create: [{ title: 'New subtask' }, { title: '   ' }],
           delete: [removeSubtask.id],
         },
-      });
+      }, userId);
 
       expect(updated.title).toBe('Updated');
       expect(updated.subtasks.map((subtask) => subtask.title)).toEqual([
@@ -508,15 +509,15 @@ describe('TaskService', () => {
       const firstTask = await service.create({
         title: 'First',
         subtasks: [{ title: 'First subtask' }],
-      });
-      const secondTask = await service.create({ title: 'Second' });
+      }, userId);
+      const secondTask = await service.create({ title: 'Second' }, userId);
 
       await expect(
         service.update(secondTask.id, {
           subtasks: {
             update: [{ id: firstTask.subtasks[0].id, title: 'Hijacked' }],
           },
-        })
+        }, userId)
       ).rejects.toThrow('subtask does not belong to task');
     });
 
@@ -524,13 +525,13 @@ describe('TaskService', () => {
       vi.useFakeTimers();
       vi.setSystemTime(new Date('2026-03-16T10:00:00.000Z'));
 
-      const highTask = await service.create({ title: 'High task', priority: 'high' });
-      await service.create({ title: 'Default first', priority: 'default' });
-      await service.create({ title: 'Default second', priority: 'default' });
+      const highTask = await service.create({ title: 'High task', priority: 'high' }, userId);
+      await service.create({ title: 'Default first', priority: 'default' }, userId);
+      await service.create({ title: 'Default second', priority: 'default' }, userId);
 
-      await service.update(highTask.id, { priority: 'default' });
+      await service.update(highTask.id, { priority: 'default' }, userId);
 
-      const result = await service.listTasks();
+      const result = await service.listTasks(userId);
       expect(result.active.map((task) => task.title)).toEqual([
         'Default first',
         'Default second',
@@ -544,13 +545,13 @@ describe('TaskService', () => {
       vi.useFakeTimers();
       vi.setSystemTime(new Date('2026-03-16T10:00:00.000Z'));
 
-      const first = await service.create({ title: 'First', priority: 'default' });
-      const second = await service.create({ title: 'Second', priority: 'default' });
-      const third = await service.create({ title: 'Third', priority: 'default' });
+      const first = await service.create({ title: 'First', priority: 'default' }, userId);
+      const second = await service.create({ title: 'Second', priority: 'default' }, userId);
+      const third = await service.create({ title: 'Third', priority: 'default' }, userId);
 
-      await service.reorder([third.id, first.id, second.id]);
+      await service.reorder([third.id, first.id, second.id], userId);
 
-      const result = await service.listTasks();
+      const result = await service.listTasks(userId);
       expect(result.active.map((task) => task.title)).toEqual(['Third', 'First', 'Second']);
       expect(result.active.map((task) => task.sortOrder)).toEqual([0, 1, 2]);
     });
@@ -559,15 +560,15 @@ describe('TaskService', () => {
       vi.useFakeTimers();
       vi.setSystemTime(new Date('2026-03-16T10:00:00.000Z'));
 
-      const first = await service.create({ title: 'First', priority: 'default' });
-      await service.create({ title: 'Second', priority: 'default' });
-      const upcoming = await service.create({ title: 'Upcoming', notBefore: '2026-03-17' });
+      const first = await service.create({ title: 'First', priority: 'default' }, userId);
+      await service.create({ title: 'Second', priority: 'default' }, userId);
+      const upcoming = await service.create({ title: 'Upcoming', notBefore: '2026-03-17' }, userId);
 
-      await expect(service.reorder([first.id, first.id])).rejects.toThrow('invalid reorder payload');
-      await expect(service.reorder([first.id])).rejects.toThrow('invalid reorder payload');
-      await expect(service.reorder([first.id, upcoming.id])).rejects.toThrow('invalid reorder payload');
+      await expect(service.reorder([first.id, first.id], userId)).rejects.toThrow('invalid reorder payload');
+      await expect(service.reorder([first.id], userId)).rejects.toThrow('invalid reorder payload');
+      await expect(service.reorder([first.id, upcoming.id], userId)).rejects.toThrow('invalid reorder payload');
 
-      const result = await service.listTasks();
+      const result = await service.listTasks(userId);
       expect(result.active.map((task) => task.title)).toEqual(['First', 'Second']);
       expect(result.active.map((task) => task.sortOrder)).toEqual([0, 1]);
     });
@@ -578,9 +579,9 @@ describe('TaskService', () => {
       const task = await service.create({
         title: 'To delete',
         subtasks: [{ title: 'Subtask' }],
-      });
-      await service.delete(task.id);
-      const result = await service.listTasks();
+      }, userId);
+      await service.delete(task.id, userId);
+      const result = await service.listTasks(userId);
       expect(result.active).toHaveLength(0);
       const remainingSubtasks = sqlite
         .prepare('SELECT COUNT(*) as count FROM subtasks WHERE task_id = ?')
@@ -594,13 +595,61 @@ describe('TaskService', () => {
       await service.create({
         title: 'Parent with subtasks',
         subtasks: [{ title: 'Nested one' }, { title: 'Nested two' }],
-      });
+      }, userId);
 
-      const result = await service.listTasks();
+      const result = await service.listTasks(userId);
 
       expect(result.active).toHaveLength(1);
       expect(result.active[0].title).toBe('Parent with subtasks');
       expect(result.active[0].subtasks).toHaveLength(2);
+    });
+  });
+
+  describe('user isolation', () => {
+    it('listTasks only returns tasks belonging to the requesting user', async () => {
+      await service.create({ title: 'User A task' }, 'user-a');
+      await service.create({ title: 'User B task' }, 'user-b');
+
+      const resultA = await service.listTasks('user-a');
+      expect(resultA.active).toHaveLength(1);
+      expect(resultA.active[0].title).toBe('User A task');
+
+      const resultB = await service.listTasks('user-b');
+      expect(resultB.active).toHaveLength(1);
+      expect(resultB.active[0].title).toBe('User B task');
+    });
+
+    it('getById returns null for a task owned by a different user', async () => {
+      const task = await service.create({ title: 'User A task' }, 'user-a');
+      const result = await service.getById(task.id, 'user-b');
+      expect(result).toBeNull();
+    });
+
+    it('update throws not found for a task owned by a different user', async () => {
+      const task = await service.create({ title: 'User A task' }, 'user-a');
+      await expect(
+        service.update(task.id, { title: 'Hijacked' }, 'user-b')
+      ).rejects.toThrow('not found');
+    });
+
+    it('delete silently ignores tasks owned by a different user', async () => {
+      const task = await service.create({ title: 'User A task' }, 'user-a');
+      await service.delete(task.id, 'user-b');
+      const result = await service.getById(task.id, 'user-a');
+      expect(result).not.toBeNull();
+    });
+
+    it('complete throws not found for a task owned by a different user', async () => {
+      const task = await service.create({ title: 'User A task' }, 'user-a');
+      await expect(service.complete(task.id, {}, 'user-b')).rejects.toThrow('not found');
+    });
+
+    it('reorder rejects a mix of tasks from different users', async () => {
+      const taskA = await service.create({ title: 'User A' }, 'user-a');
+      const taskB = await service.create({ title: 'User B' }, 'user-b');
+      await expect(service.reorder([taskA.id, taskB.id], 'user-a')).rejects.toThrow(
+        'invalid reorder payload'
+      );
     });
   });
 });

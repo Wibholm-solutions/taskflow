@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { Hono } from 'hono';
 import { createTaskRoutes } from '../src/routes/tasks';
+import { authMiddleware } from '../src/middleware/auth';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import * as schema from '../src/db/schema';
@@ -42,6 +43,7 @@ function setupApp() {
   const db = drizzle(sqlite, { schema });
   const service = new TaskService(db);
   const app = new Hono().basePath('/todo/api');
+  app.use('/*', authMiddleware);
   app.route('/', createTaskRoutes(service));
   return { app, sqlite };
 }
@@ -778,6 +780,111 @@ describe('Task API', () => {
 
       const res = await app.request(`/todo/api/tasks/${id}`, { method: 'DELETE' });
       expect(res.status).toBe(204);
+    });
+  });
+
+  describe('user isolation', () => {
+    it('users only see their own tasks on GET /tasks', async () => {
+      await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-User-Id': 'user-a' },
+        body: JSON.stringify({ title: 'User A task' }),
+      });
+      await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-User-Id': 'user-b' },
+        body: JSON.stringify({ title: 'User B task' }),
+      });
+
+      const resA = await app.request('/todo/api/tasks', { headers: { 'X-User-Id': 'user-a' } });
+      const bodyA = await resA.json();
+      expect(bodyA.active).toHaveLength(1);
+      expect(bodyA.active[0].title).toBe('User A task');
+
+      const resB = await app.request('/todo/api/tasks', { headers: { 'X-User-Id': 'user-b' } });
+      const bodyB = await resB.json();
+      expect(bodyB.active).toHaveLength(1);
+      expect(bodyB.active[0].title).toBe('User B task');
+    });
+
+    it('GET /tasks/:id returns 404 when task belongs to a different user', async () => {
+      const createRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-User-Id': 'user-a' },
+        body: JSON.stringify({ title: 'User A task' }),
+      });
+      const { id } = await createRes.json();
+
+      const res = await app.request(`/todo/api/tasks/${id}`, {
+        headers: { 'X-User-Id': 'user-b' },
+      });
+      expect(res.status).toBe(404);
+    });
+
+    it('PUT /tasks/:id returns 404 when task belongs to a different user', async () => {
+      const createRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-User-Id': 'user-a' },
+        body: JSON.stringify({ title: 'User A task' }),
+      });
+      const { id } = await createRes.json();
+
+      const res = await app.request(`/todo/api/tasks/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-User-Id': 'user-b' },
+        body: JSON.stringify({ title: 'Hijacked' }),
+      });
+      expect(res.status).toBe(404);
+    });
+
+    it('DELETE /tasks/:id is a no-op when task belongs to a different user', async () => {
+      const createRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-User-Id': 'user-a' },
+        body: JSON.stringify({ title: 'User A task' }),
+      });
+      const { id } = await createRes.json();
+
+      const deleteRes = await app.request(`/todo/api/tasks/${id}`, {
+        method: 'DELETE',
+        headers: { 'X-User-Id': 'user-b' },
+      });
+      expect(deleteRes.status).toBe(204);
+
+      const getRes = await app.request(`/todo/api/tasks/${id}`, {
+        headers: { 'X-User-Id': 'user-a' },
+      });
+      expect(getRes.status).toBe(200);
+    });
+
+    it('POST /tasks/:id/complete returns 404 when task belongs to a different user', async () => {
+      const createRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-User-Id': 'user-a' },
+        body: JSON.stringify({ title: 'User A task' }),
+      });
+      const { id } = await createRes.json();
+
+      const res = await app.request(`/todo/api/tasks/${id}/complete`, {
+        method: 'POST',
+        headers: { 'X-User-Id': 'user-b' },
+      });
+      expect(res.status).toBe(404);
+    });
+
+    it('newly created task is only visible to the creating user', async () => {
+      const createRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-User-Id': 'user-a' },
+        body: JSON.stringify({ title: 'Only mine' }),
+      });
+      expect(createRes.status).toBe(201);
+      const created = await createRes.json();
+
+      const otherRes = await app.request(`/todo/api/tasks/${created.id}`, {
+        headers: { 'X-User-Id': 'user-b' },
+      });
+      expect(otherRes.status).toBe(404);
     });
   });
 });
