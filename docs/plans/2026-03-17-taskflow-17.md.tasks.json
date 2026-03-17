@@ -1,0 +1,10 @@
+{
+  "planPath": "docs/plans/2026-03-17-taskflow-17.md",
+  "tasks": [
+    {"id": 1, "subject": "Task 1: Verify current coverage infrastructure", "status": "pending"},
+    {"id": 2, "subject": "Task 2: Add lcov reporter to vitest.config.ts", "status": "pending", "blockedBy": [1]},
+    {"id": 3, "subject": "Task 3: Add coverage artifact upload to CI", "status": "pending", "blockedBy": [2]},
+    {"id": 4, "subject": "Task 4: Final verification", "status": "pending", "blockedBy": [3]}
+  ],
+  "lastUpdated": "2026-03-17T03:52:00Z"
+}
