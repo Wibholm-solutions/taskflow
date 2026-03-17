@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import type { TaskService } from '../services/taskService';
+import type { AppEnv } from '../middleware/auth';
 
 const VALID_PRIORITIES = ['high', 'default', 'low'];
 const VALID_RECURRENCE_TYPES = ['weekdays', 'days_after', 'months_after'];
@@ -166,31 +167,35 @@ async function readJsonBody(
 }
 
 export function createTaskRoutes(service: TaskService) {
-  const routes = new Hono();
+  const routes = new Hono<AppEnv>();
 
   routes.get('/tasks', async (c) => {
-    const tasks = await service.listTasks();
+    const userId = c.get('userId') as string;
+    const tasks = await service.listTasks(userId);
     return c.json(tasks);
   });
 
   routes.post('/tasks', async (c) => {
+    const userId = c.get('userId') as string;
     const parsed = await readJsonBody(c, { optional: false });
     if (parsed.error || parsed.body === null) {
       return c.json({ error: parsed.error ?? 'invalid request body' }, 400);
     }
     const validationError = validateCreateInput(parsed.body);
     if (validationError) return c.json({ error: validationError }, 400);
-    const task = await service.create(parsed.body);
+    const task = await service.create(parsed.body, userId);
     return c.json(task, 201);
   });
 
   routes.get('/tasks/:id', async (c) => {
-    const task = await service.getById(c.req.param('id'));
+    const userId = c.get('userId') as string;
+    const task = await service.getById(c.req.param('id'), userId);
     if (!task) return c.json({ error: 'not found' }, 404);
     return c.json(task);
   });
 
   routes.put('/tasks/:id', async (c) => {
+    const userId = c.get('userId') as string;
     const parsed = await readJsonBody(c, { optional: false });
     if (parsed.error || parsed.body === null) {
       return c.json({ error: parsed.error ?? 'invalid request body' }, 400);
@@ -198,7 +203,7 @@ export function createTaskRoutes(service: TaskService) {
     const validationError = validateUpdateInput(parsed.body);
     if (validationError) return c.json({ error: validationError }, 400);
     try {
-      const task = await service.update(c.req.param('id'), parsed.body);
+      const task = await service.update(c.req.param('id'), parsed.body, userId);
       return c.json(task);
     } catch (e: any) {
       if (e.message === 'not found') return c.json({ error: 'not found' }, 404);
@@ -210,11 +215,13 @@ export function createTaskRoutes(service: TaskService) {
   });
 
   routes.delete('/tasks/:id', async (c) => {
-    await service.delete(c.req.param('id'));
+    const userId = c.get('userId') as string;
+    await service.delete(c.req.param('id'), userId);
     return c.body(null, 204);
   });
 
   routes.post('/tasks/:id/complete', async (c) => {
+    const userId = c.get('userId') as string;
     const parsed = await readJsonBody(c, { optional: true });
     if (parsed.error || parsed.body === null) {
       return c.json({ error: parsed.error ?? 'invalid request body' }, 400);
@@ -222,9 +229,8 @@ export function createTaskRoutes(service: TaskService) {
     const body = parsed.body;
     const validationError = validateCompleteInput(body);
     if (validationError) return c.json({ error: validationError }, 400);
-
     try {
-      const result = await service.complete(c.req.param('id'), body);
+      const result = await service.complete(c.req.param('id'), body, userId);
       if (result.requiresConfirmation) {
         return c.json({ error: 'subtasks_confirmation_required' }, 409);
       }
@@ -236,16 +242,15 @@ export function createTaskRoutes(service: TaskService) {
   });
 
   routes.post('/tasks/reorder', async (c) => {
+    const userId = c.get('userId') as string;
     const parsed = await readJsonBody(c, { optional: false });
     if (parsed.error || parsed.body === null) {
       return c.json({ error: parsed.error ?? 'invalid reorder payload' }, 400);
     }
-
     const validationError = validateReorderInput(parsed.body);
     if (validationError) return c.json({ error: validationError }, 400);
-
     try {
-      await service.reorder(parsed.body.taskIds);
+      await service.reorder(parsed.body.taskIds, userId);
       return c.body(null, 200);
     } catch (e: any) {
       if (e.message === 'invalid reorder payload') {
