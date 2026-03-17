@@ -441,6 +441,191 @@ describe('Task API', () => {
       const body = await res.json();
       expect(body.title).toBe('Headerless update');
     });
+
+    it('should reject empty title on update', async () => {
+      const createRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Original' }),
+      });
+      const { id } = await createRes.json();
+
+      const res = await app.request(`/todo/api/tasks/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: '' }),
+      });
+
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({ error: expect.stringContaining('title') });
+    });
+
+    it('should reject whitespace-only title on update', async () => {
+      const createRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Original' }),
+      });
+      const { id } = await createRes.json();
+
+      const res = await app.request(`/todo/api/tasks/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: '   ' }),
+      });
+
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({ error: expect.stringContaining('title') });
+    });
+
+    it('should reject invalid priority on update', async () => {
+      const createRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Task' }),
+      });
+      const { id } = await createRes.json();
+
+      const res = await app.request(`/todo/api/tasks/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ priority: 'urgent' }),
+      });
+
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({ error: 'invalid priority' });
+    });
+
+    it('should reject malformed deadline on update', async () => {
+      const createRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Task' }),
+      });
+      const { id } = await createRes.json();
+
+      const res = await app.request(`/todo/api/tasks/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deadline: 'not-a-date' }),
+      });
+
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({ error: 'invalid deadline date' });
+    });
+
+    it('should reject title over 200 chars on update', async () => {
+      const createRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Task' }),
+      });
+      const { id } = await createRes.json();
+
+      const res = await app.request(`/todo/api/tasks/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'x'.repeat(201) }),
+      });
+
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({ error: 'title must be 200 chars or less' });
+    });
+
+    it('should reject recurrenceRule with unknown type on update', async () => {
+      const createRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Task' }),
+      });
+      const { id } = await createRes.json();
+
+      const res = await app.request(`/todo/api/tasks/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recurrenceRule: { type: 'monthly' } }),
+      });
+
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({ error: 'invalid recurrence type' });
+    });
+
+    it('should reject recurrenceRule missing required interval on update', async () => {
+      const createRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Task' }),
+      });
+      const { id } = await createRes.json();
+
+      const res = await app.request(`/todo/api/tasks/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recurrenceRule: { type: 'days_after' } }),
+      });
+
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({ error: 'days_after requires positive interval' });
+    });
+
+    it('should reject recurrenceRule weekdays with empty days array on update', async () => {
+      const createRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Task' }),
+      });
+      const { id } = await createRes.json();
+
+      const res = await app.request(`/todo/api/tasks/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recurrenceRule: { type: 'weekdays', days: [] } }),
+      });
+
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({ error: 'weekdays requires days array' });
+    });
+
+    it('should accept null recurrenceRule to clear recurrence on update', async () => {
+      const createRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: 'Task',
+          recurrenceRule: { type: 'days_after', interval: 7 },
+        }),
+      });
+      const { id } = await createRes.json();
+
+      const res = await app.request(`/todo/api/tasks/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recurrenceRule: null }),
+      });
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.recurrenceRule).toBeNull();
+    });
+
+    it('should accept null deadline to clear deadline on update', async () => {
+      const createRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Task', deadline: '2026-12-31' }),
+      });
+      const { id } = await createRes.json();
+
+      const res = await app.request(`/todo/api/tasks/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deadline: null }),
+      });
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.deadline).toBeNull();
+    });
   });
 
   describe('POST /todo/api/tasks/:id/complete', () => {
