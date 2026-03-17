@@ -28,7 +28,7 @@ describe('coverage tooling', () => {
         'client/src/main.tsx',
         'server/src/index.ts',
       ]),
-      reporter: expect.arrayContaining(['text', 'html']),
+      reporter: expect.arrayContaining(['text', 'html', 'lcov']),
       thresholds: {
         lines: 63.84,
         statements: 63.84,

@@ -19,7 +19,7 @@ export default defineConfig({
         'client/src/main.tsx',
         'server/src/index.ts',
       ],
-      reporter: ['text', 'html'],
+      reporter: ['text', 'html', 'lcov'],
       thresholds: {
         lines: 63.84,
         statements: 63.84,
