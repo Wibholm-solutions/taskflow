@@ -101,6 +101,7 @@ function validateCreateInput(body: any): string | null {
 function validateUpdateInput(body: any): string | null {
   if (!isObject(body)) return 'invalid request body';
   if (body.title !== undefined && typeof body.title !== 'string') return 'title must be a string';
+  if (body.title !== undefined && body.title.trim().length === 0) return 'title must not be empty';
   if (body.title !== undefined && body.title.length > 200) return 'title must be 200 chars or less';
   if (body.priority !== undefined && !VALID_PRIORITIES.includes(body.priority)) return 'invalid priority';
   if (body.deadline !== undefined && body.deadline !== null && isNaN(Date.parse(body.deadline))) {
