@@ -1,0 +1,9 @@
+{
+  "planPath": "docs/plans/2026-03-19-taskflow-19.md",
+  "tasks": [
+    {"id": 1, "subject": "Task 1: Add prefill tests for weekdays and interval recurrence", "status": "pending"},
+    {"id": 2, "subject": "Task 2: Add save-payload tests for all three recurrence modes", "status": "pending", "blockedBy": [1]},
+    {"id": 3, "subject": "Task 3: Add test for empty weekday selection silent-drop behavior", "status": "pending", "blockedBy": [2]}
+  ],
+  "lastUpdated": "2026-03-19T00:00:00Z"
+}

@@ -558,6 +558,69 @@ describe('TaskService', () => {
       expect(result.nextInstance).not.toBeNull();
       expect(result.nextInstance!.recurrenceGroupId).toBe(updated.recurrenceGroupId);
     });
+
+    describe('subtask completedAt transitions', () => {
+      it('sets completedAt when a subtask is created with isCompleted: true', async () => {
+        const task = await service.create({
+          title: 'Parent',
+          subtasks: [{ title: 'Already done', isCompleted: true }],
+        }, userId);
+
+        expect(task.subtasks).toHaveLength(1);
+        expect(task.subtasks[0].isCompleted).toBe(true);
+        expect(task.subtasks[0].completedAt).toBeTruthy();
+      });
+
+      it('clears completedAt when a completed subtask is reopened', async () => {
+        const task = await service.create({
+          title: 'Parent',
+          subtasks: [{ title: 'Will reopen', isCompleted: true }],
+        }, userId);
+
+        expect(task.subtasks[0].completedAt).toBeTruthy();
+
+        const updated = await service.update(task.id, {
+          subtasks: {
+            update: [{ id: task.subtasks[0].id, isCompleted: false }],
+          },
+        }, userId);
+
+        expect(updated.subtasks[0].isCompleted).toBe(false);
+        expect(updated.subtasks[0].completedAt).toBeNull();
+      });
+
+      it('sets a new completedAt when a reopened subtask is completed again', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-03-19T10:00:00.000Z'));
+
+        const task = await service.create({
+          title: 'Parent',
+          subtasks: [{ title: 'Toggle me', isCompleted: true }],
+        }, userId);
+
+        const originalCompletedAt = task.subtasks[0].completedAt;
+
+        // Reopen the subtask
+        await service.update(task.id, {
+          subtasks: {
+            update: [{ id: task.subtasks[0].id, isCompleted: false }],
+          },
+        }, userId);
+
+        // Advance time and re-complete
+        vi.setSystemTime(new Date('2026-03-19T12:00:00.000Z'));
+
+        const recompleted = await service.update(task.id, {
+          subtasks: {
+            update: [{ id: task.subtasks[0].id, isCompleted: true }],
+          },
+        }, userId);
+
+        expect(recompleted.subtasks[0].isCompleted).toBe(true);
+        expect(recompleted.subtasks[0].completedAt).toBeTruthy();
+        expect(recompleted.subtasks[0].completedAt).not.toBe(originalCompletedAt);
+      });
+    });
   });
 
   describe('reorder', () => {
