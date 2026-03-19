@@ -56,6 +56,11 @@ client/src/
 - Optimistic UI updates with rollback on failure
 - TDD: tests written before implementation
 
+## Known State
+- `coverage/` er gitignored — genererede rapporter hører ikke i git
+- To tests kører som `it.fails()` canaries (reorder-bug + recurrenceGroupId-via-update) — fjern ikke uden at fixe den underliggende bug
+- PR #32 afventer CI for at lukke issue #17
+
 ## Status
 - [x] Project scaffolding
 - [x] Database schema
