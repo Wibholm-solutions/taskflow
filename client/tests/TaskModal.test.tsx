@@ -255,4 +255,104 @@ describe('TaskModal', () => {
     expect(screen.getByText('2/3')).toBeTruthy();
     expect(screen.getByLabelText('3 subtasks')).toBeTruthy();
   });
+
+  it('pre-fills weekdays recurrence rule when editing', () => {
+    const onSave = vi.fn();
+    render(
+      <TaskModal
+        isOpen={true}
+        onClose={() => {}}
+        onSave={onSave}
+        editTask={{ ...baseTask, recurrenceRule: { type: 'weekdays', days: [1, 5] } }}
+      />
+    );
+    // Extra panel is open automatically when recurrence rule is present
+    expect((screen.getByRole('combobox') as HTMLSelectElement).value).toBe('weekdays');
+    // Saving without changes must preserve the prefilled weekdays rule
+    fireEvent.click(screen.getByText('Gem'));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ recurrenceRule: { type: 'weekdays', days: [1, 5] } })
+    );
+  });
+
+  it('pre-fills interval recurrence rule when editing (days_after)', () => {
+    const onSave = vi.fn();
+    render(
+      <TaskModal
+        isOpen={true}
+        onClose={() => {}}
+        onSave={onSave}
+        editTask={{ ...baseTask, recurrenceRule: { type: 'days_after', interval: 14 } }}
+      />
+    );
+    expect((screen.getByRole('combobox') as HTMLSelectElement).value).toBe('days_after');
+    const intervalInput = screen.getByRole('spinbutton') as HTMLInputElement;
+    expect(intervalInput.value).toBe('14');
+    fireEvent.click(screen.getByText('Gem'));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ recurrenceRule: { type: 'days_after', interval: 14 } })
+    );
+  });
+
+  it('saves weekdays recurrence payload', () => {
+    const onSave = vi.fn();
+    render(<TaskModal isOpen={true} onClose={() => {}} onSave={onSave} />);
+    fireEvent.change(screen.getByPlaceholderText('Hvad skal du?'), {
+      target: { value: 'Repeat task' },
+    });
+    fireEvent.click(screen.getByText('Flere indstillinger'));
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'weekdays' } });
+    // 'M' = Monday (index 1), 'F' = Friday (index 5) — unique labels in WEEKDAY_LABELS
+    fireEvent.click(screen.getByText('M'));
+    fireEvent.click(screen.getByText('F'));
+    fireEvent.click(screen.getByText('Gem'));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ recurrenceRule: { type: 'weekdays', days: [1, 5] } })
+    );
+  });
+
+  it('saves days_after recurrence payload', () => {
+    const onSave = vi.fn();
+    render(<TaskModal isOpen={true} onClose={() => {}} onSave={onSave} />);
+    fireEvent.change(screen.getByPlaceholderText('Hvad skal du?'), {
+      target: { value: 'Interval task' },
+    });
+    fireEvent.click(screen.getByText('Flere indstillinger'));
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'days_after' } });
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '10' } });
+    fireEvent.click(screen.getByText('Gem'));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ recurrenceRule: { type: 'days_after', interval: 10 } })
+    );
+  });
+
+  it('saves months_after recurrence payload', () => {
+    const onSave = vi.fn();
+    render(<TaskModal isOpen={true} onClose={() => {}} onSave={onSave} />);
+    fireEvent.change(screen.getByPlaceholderText('Hvad skal du?'), {
+      target: { value: 'Monthly task' },
+    });
+    fireEvent.click(screen.getByText('Flere indstillinger'));
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'months_after' } });
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '3' } });
+    fireEvent.click(screen.getByText('Gem'));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ recurrenceRule: { type: 'months_after', interval: 3 } })
+    );
+  });
+
+  it('omits recurrenceRule when weekdays type is selected but no days are chosen', () => {
+    const onSave = vi.fn();
+    render(<TaskModal isOpen={true} onClose={() => {}} onSave={onSave} />);
+    fireEvent.change(screen.getByPlaceholderText('Hvad skal du?'), {
+      target: { value: 'Task' },
+    });
+    fireEvent.click(screen.getByText('Flere indstillinger'));
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'weekdays' } });
+    // Intentionally select no days
+    fireEvent.click(screen.getByText('Gem'));
+    expect(onSave).toHaveBeenCalledTimes(1);
+    const savedInput = onSave.mock.calls[0][0];
+    expect(savedInput.recurrenceRule).toBeUndefined();
+  });
 });
