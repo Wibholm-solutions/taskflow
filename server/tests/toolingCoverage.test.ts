@@ -28,7 +28,7 @@ describe('coverage tooling', () => {
         'client/src/main.tsx',
         'server/src/index.ts',
       ]),
-      reporter: expect.arrayContaining(['text', 'html']),
+      reporter: expect.arrayContaining(['text', 'html', 'lcov']),
       thresholds: {
         lines: 63.84,
         statements: 63.84,
@@ -49,5 +49,8 @@ describe('coverage tooling', () => {
     expect(workflow).toContain('e2e:\n    needs: build');
     expect(workflow).toContain('run: npm run test:coverage');
     expect(workflow).toContain('needs: [unit_coverage, build, e2e]');
+    // upload-artifact step
+    expect(workflow).toContain('actions/upload-artifact@v4');
+    expect(workflow).toContain('coverage/');
   });
 });
