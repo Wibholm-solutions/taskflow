@@ -255,4 +255,42 @@ describe('TaskModal', () => {
     expect(screen.getByText('2/3')).toBeTruthy();
     expect(screen.getByLabelText('3 subtasks')).toBeTruthy();
   });
+
+  it('pre-fills weekdays recurrence rule when editing', () => {
+    const onSave = vi.fn();
+    render(
+      <TaskModal
+        isOpen={true}
+        onClose={() => {}}
+        onSave={onSave}
+        editTask={{ ...baseTask, recurrenceRule: { type: 'weekdays', days: [1, 5] } }}
+      />
+    );
+    // Extra panel is open automatically when recurrence rule is present
+    expect((screen.getByRole('combobox') as HTMLSelectElement).value).toBe('weekdays');
+    // Saving without changes must preserve the prefilled weekdays rule
+    fireEvent.click(screen.getByText('Gem'));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ recurrenceRule: { type: 'weekdays', days: [1, 5] } })
+    );
+  });
+
+  it('pre-fills interval recurrence rule when editing (days_after)', () => {
+    const onSave = vi.fn();
+    render(
+      <TaskModal
+        isOpen={true}
+        onClose={() => {}}
+        onSave={onSave}
+        editTask={{ ...baseTask, recurrenceRule: { type: 'days_after', interval: 14 } }}
+      />
+    );
+    expect((screen.getByRole('combobox') as HTMLSelectElement).value).toBe('days_after');
+    const intervalInput = screen.getByRole('spinbutton') as HTMLInputElement;
+    expect(intervalInput.value).toBe('14');
+    fireEvent.click(screen.getByText('Gem'));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ recurrenceRule: { type: 'days_after', interval: 14 } })
+    );
+  });
 });
