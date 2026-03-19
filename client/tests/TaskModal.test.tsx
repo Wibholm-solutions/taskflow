@@ -293,4 +293,51 @@ describe('TaskModal', () => {
       expect.objectContaining({ recurrenceRule: { type: 'days_after', interval: 14 } })
     );
   });
+
+  it('saves weekdays recurrence payload', () => {
+    const onSave = vi.fn();
+    render(<TaskModal isOpen={true} onClose={() => {}} onSave={onSave} />);
+    fireEvent.change(screen.getByPlaceholderText('Hvad skal du?'), {
+      target: { value: 'Repeat task' },
+    });
+    fireEvent.click(screen.getByText('Flere indstillinger'));
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'weekdays' } });
+    // 'M' = Monday (index 1), 'F' = Friday (index 5) — unique labels in WEEKDAY_LABELS
+    fireEvent.click(screen.getByText('M'));
+    fireEvent.click(screen.getByText('F'));
+    fireEvent.click(screen.getByText('Gem'));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ recurrenceRule: { type: 'weekdays', days: [1, 5] } })
+    );
+  });
+
+  it('saves days_after recurrence payload', () => {
+    const onSave = vi.fn();
+    render(<TaskModal isOpen={true} onClose={() => {}} onSave={onSave} />);
+    fireEvent.change(screen.getByPlaceholderText('Hvad skal du?'), {
+      target: { value: 'Interval task' },
+    });
+    fireEvent.click(screen.getByText('Flere indstillinger'));
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'days_after' } });
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '10' } });
+    fireEvent.click(screen.getByText('Gem'));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ recurrenceRule: { type: 'days_after', interval: 10 } })
+    );
+  });
+
+  it('saves months_after recurrence payload', () => {
+    const onSave = vi.fn();
+    render(<TaskModal isOpen={true} onClose={() => {}} onSave={onSave} />);
+    fireEvent.change(screen.getByPlaceholderText('Hvad skal du?'), {
+      target: { value: 'Monthly task' },
+    });
+    fireEvent.click(screen.getByText('Flere indstillinger'));
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'months_after' } });
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '3' } });
+    fireEvent.click(screen.getByText('Gem'));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ recurrenceRule: { type: 'months_after', interval: 3 } })
+    );
+  });
 });
