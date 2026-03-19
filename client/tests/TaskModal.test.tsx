@@ -340,4 +340,19 @@ describe('TaskModal', () => {
       expect.objectContaining({ recurrenceRule: { type: 'months_after', interval: 3 } })
     );
   });
+
+  it('omits recurrenceRule when weekdays type is selected but no days are chosen', () => {
+    const onSave = vi.fn();
+    render(<TaskModal isOpen={true} onClose={() => {}} onSave={onSave} />);
+    fireEvent.change(screen.getByPlaceholderText('Hvad skal du?'), {
+      target: { value: 'Task' },
+    });
+    fireEvent.click(screen.getByText('Flere indstillinger'));
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'weekdays' } });
+    // Intentionally select no days
+    fireEvent.click(screen.getByText('Gem'));
+    expect(onSave).toHaveBeenCalledTimes(1);
+    const savedInput = onSave.mock.calls[0][0];
+    expect(savedInput.recurrenceRule).toBeUndefined();
+  });
 });
