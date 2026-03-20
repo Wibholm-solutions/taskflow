@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import type { TaskService } from '../services/taskService';
+import { SubtasksConfirmationRequiredError } from '../services/taskService';
 import type { AppEnv } from '../middleware/auth';
 
 const VALID_PRIORITIES = ['high', 'default', 'low'];
@@ -232,11 +233,11 @@ export function createTaskRoutes(service: TaskService) {
     if (validationError) return c.json({ error: validationError }, 400);
     try {
       const result = await service.complete(c.req.param('id'), body, userId);
-      if (result.requiresConfirmation) {
-        return c.json({ error: 'subtasks_confirmation_required' }, 409);
-      }
       return c.json(result);
     } catch (e: any) {
+      if (e instanceof SubtasksConfirmationRequiredError) {
+        return c.json({ error: 'subtasks_confirmation_required' }, 409);
+      }
       if (e.message === 'not found') return c.json({ error: 'not found' }, 404);
       throw e;
     }
