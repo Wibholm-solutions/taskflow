@@ -157,6 +157,58 @@ describe('Task API', () => {
       expect(res.status).toBe(400);
     });
 
+    describe('recurrence validation', () => {
+      it('should reject non-object recurrenceRule on create', async () => {
+        const res = await app.request('/todo/api/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: 'Task', recurrenceRule: 'daily' }),
+        });
+        expect(res.status).toBe(400);
+        expect(await res.json()).toMatchObject({ error: 'invalid recurrence rule' });
+      });
+
+      it('should reject unsupported recurrence type on create', async () => {
+        const res = await app.request('/todo/api/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: 'Task', recurrenceRule: { type: 'monthly' } }),
+        });
+        expect(res.status).toBe(400);
+        expect(await res.json()).toMatchObject({ error: 'invalid recurrence type' });
+      });
+
+      it('should reject weekdays rule without days on create', async () => {
+        const res = await app.request('/todo/api/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: 'Task', recurrenceRule: { type: 'weekdays', days: [] } }),
+        });
+        expect(res.status).toBe(400);
+        expect(await res.json()).toMatchObject({ error: 'weekdays requires days array' });
+      });
+
+      it('should reject days_after with zero interval on create', async () => {
+        const res = await app.request('/todo/api/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: 'Task', recurrenceRule: { type: 'days_after', interval: 0 } }),
+        });
+        expect(res.status).toBe(400);
+        expect(await res.json()).toMatchObject({ error: 'days_after requires positive interval' });
+      });
+
+      it('should reject months_after with negative interval on create', async () => {
+        const res = await app.request('/todo/api/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: 'Task', recurrenceRule: { type: 'months_after', interval: -1 } }),
+        });
+        expect(res.status).toBe(400);
+        expect(await res.json()).toMatchObject({ error: 'months_after requires positive interval' });
+      });
+    });
+
     it('should create a task with valid JSON and no content-type header', async () => {
       const res = await app.request('/todo/api/tasks', {
         method: 'POST',
@@ -586,6 +638,40 @@ describe('Task API', () => {
 
       expect(res.status).toBe(400);
       expect(await res.json()).toMatchObject({ error: 'weekdays requires days array' });
+    });
+
+    it('should reject non-object recurrenceRule on update', async () => {
+      const createRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Task' }),
+      });
+      const { id } = await createRes.json();
+
+      const res = await app.request(`/todo/api/tasks/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recurrenceRule: 42 }),
+      });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({ error: 'invalid recurrence rule' });
+    });
+
+    it('should reject months_after with zero interval on update', async () => {
+      const createRes = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Task' }),
+      });
+      const { id } = await createRes.json();
+
+      const res = await app.request(`/todo/api/tasks/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recurrenceRule: { type: 'months_after', interval: 0 } }),
+      });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({ error: 'months_after requires positive interval' });
     });
 
     it('should accept null recurrenceRule to clear recurrence on update', async () => {
