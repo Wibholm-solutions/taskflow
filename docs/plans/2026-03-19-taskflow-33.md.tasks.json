@@ -1,8 +1,0 @@
-{
-  "planPath": "docs/plans/2026-03-19-taskflow-33.md",
-  "tasks": [
-    {"id": 0, "subject": "Task 1: Rewrite Dockerfile as lean multi-stage build", "status": "pending"},
-    {"id": 1, "subject": "Task 2: Update production healthcheck", "status": "pending", "blockedBy": [0]}
-  ],
-  "lastUpdated": "2026-03-19T12:00:00Z"
-}
