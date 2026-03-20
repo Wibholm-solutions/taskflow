@@ -1,7 +1,8 @@
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { subtasks, tasks } from '../db/schema';
-import { calculateNextOccurrence } from './recurrenceService';
+import { executeCompletion } from './completionOrchestrator';
+export { SubtasksConfirmationRequiredError } from './completionOrchestrator';
 import type {
   CompleteTaskOptions,
   CompleteTaskResult,
@@ -172,21 +173,6 @@ function buildSubtaskInserts(taskId: string, inputs: SubtaskInput[] | undefined,
       return buildSubtaskInsert(taskId, subtask, subtaskTimestamp);
     })
     .filter((subtask): subtask is NonNullable<typeof subtask> => subtask !== null);
-}
-
-function buildRecurringSubtaskInserts(
-  taskId: string,
-  existingSubtasks: TaskResponse['subtasks'],
-  now: string
-) {
-  return buildSubtaskInserts(
-    taskId,
-    existingSubtasks.map((subtask) => ({
-      title: subtask.title,
-      isCompleted: false,
-    })),
-    now
-  );
 }
 
 async function listSubtasks(db: any, taskIds: string[]): Promise<SubtaskRow[]> {
@@ -417,100 +403,17 @@ export class TaskService {
     const existing = await getTaskAggregate(this.db, id, userId);
     if (!existing) throw new Error('not found');
 
-    const openSubtasks = existing.subtasks.filter((subtask) => !subtask.isCompleted);
-    if (openSubtasks.length > 0 && !options.completeRemainingSubtasks) {
-      return {
-        completed: null,
-        nextInstance: null,
-        requiresConfirmation: true,
-      };
-    }
-
     const now = new Date().toISOString();
-    const completedDate = now.split('T')[0];
     let nextInstanceId: string | null = null;
 
     this.db.transaction((tx: any) => {
-      if (openSubtasks.length > 0) {
-        tx.update(subtasks)
-          .set({ isCompleted: 1, completedAt: now, updatedAt: now })
-          .where(and(eq(subtasks.taskId, id), eq(subtasks.isCompleted, 0)))
-          .run();
-      }
-
-      tx.update(tasks)
-        .set({ isCompleted: 1, completedAt: now, updatedAt: now })
-        .where(eq(tasks.id, id))
-        .run();
-
-      if (!existing.recurrenceRule || !existing.recurrenceGroupId) {
-        return;
-      }
-
-      const nextDate = calculateNextOccurrence(existing.recurrenceRule, completedDate);
-      const existingInstances = tx
-        .select()
-        .from(tasks)
-        .where(
-          and(
-            eq(tasks.recurrenceGroupId, existing.recurrenceGroupId),
-            eq(tasks.isCompleted, 0),
-            eq(tasks.userId, userId)
-          )
-        )
-        .all();
-
-      if (existingInstances.length > 0) {
-        nextInstanceId = existingInstances[0].id;
-        tx.update(tasks)
-          .set({
-            notBefore: normalizeDate(nextDate),
-            deadline: existing.deadline ? normalizeDate(nextDate) : null,
-            updatedAt: now,
-          })
-          .where(eq(tasks.id, existingInstances[0].id))
-          .run();
-
-        tx.delete(subtasks).where(eq(subtasks.taskId, existingInstances[0].id)).run();
-        const recurringSubtasks = buildRecurringSubtaskInserts(
-          existingInstances[0].id,
-          existing.subtasks,
-          now
-        );
-        if (recurringSubtasks.length > 0) {
-          tx.insert(subtasks)
-            .values(recurringSubtasks)
-            .run();
-        }
-        return;
-      }
-
-      nextInstanceId = nanoid();
-      tx.insert(tasks).values({
-        id: nextInstanceId,
-        userId,
-        title: existing.title,
-        description: existing.description,
-        deadline: existing.deadline ? normalizeDate(nextDate) : null,
-        priority: existing.priority,
-        notBefore: normalizeDate(nextDate),
-        recurrenceGroupId: existing.recurrenceGroupId,
-        recurrenceRule: JSON.stringify(existing.recurrenceRule),
-        sortOrder: 0,
-        createdAt: now,
-        updatedAt: now,
-      }).run();
-
-      const recurringSubtasks = buildRecurringSubtaskInserts(nextInstanceId, existing.subtasks, now);
-      if (recurringSubtasks.length > 0) {
-        tx.insert(subtasks).values(recurringSubtasks).run();
-      }
+      const result = executeCompletion(existing, options, { tx, userId, now });
+      nextInstanceId = result.nextInstanceId;
     });
 
     return {
-      completed: await getTaskAggregate(this.db, id, userId),
+      completed: (await getTaskAggregate(this.db, id, userId))!,
       nextInstance: nextInstanceId ? await getTaskAggregate(this.db, nextInstanceId, userId) : null,
-      requiresConfirmation: false,
     };
   }
 

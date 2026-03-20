@@ -84,5 +84,4 @@ export interface CompleteTaskOptions {
 export interface CompleteResponse {
   completed: Task;
   nextInstance: Task | null;
-  requiresConfirmation: boolean;
 }

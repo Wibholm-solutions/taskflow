@@ -3,6 +3,7 @@ import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import * as schema from '../src/db/schema';
 import { TaskService } from '../src/services/taskService';
+import { SubtasksConfirmationRequiredError } from '../src/services/completionOrchestrator';
 
 function setupTestDb() {
   const sqlite = new Database(':memory:');
@@ -429,17 +430,15 @@ describe('TaskService', () => {
       );
     });
 
-    it('should require confirmation before completing a parent with open subtasks', async () => {
+    it('should throw SubtasksConfirmationRequiredError for parent with open subtasks', async () => {
       const task = await service.create({
         title: 'Parent',
         subtasks: [{ title: 'Open subtask' }],
       }, userId);
 
-      const result = await service.complete(task.id, {}, userId);
-
-      expect(result.requiresConfirmation).toBe(true);
-      expect(result.completed).toBeNull();
-      expect(result.nextInstance).toBeNull();
+      await expect(service.complete(task.id, {}, userId)).rejects.toThrow(
+        SubtasksConfirmationRequiredError
+      );
 
       const unchanged = await service.getById(task.id, userId);
       expect(unchanged?.isCompleted).toBe(false);
@@ -454,10 +453,9 @@ describe('TaskService', () => {
 
       const result = await service.complete(task.id, { completeRemainingSubtasks: true }, userId);
 
-      expect(result.requiresConfirmation).toBe(false);
-      expect(result.completed?.isCompleted).toBe(true);
-      expect(result.completed?.subtasks.every((subtask) => subtask.isCompleted)).toBe(true);
-      expect(result.completed?.subtasks.every((subtask) => subtask.completedAt)).toBe(true);
+      expect(result.completed.isCompleted).toBe(true);
+      expect(result.completed.subtasks.every((subtask) => subtask.isCompleted)).toBe(true);
+      expect(result.completed.subtasks.every((subtask) => subtask.completedAt)).toBe(true);
     });
   });
 

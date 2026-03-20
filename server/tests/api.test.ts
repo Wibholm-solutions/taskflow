@@ -829,7 +829,6 @@ describe('Task API', () => {
 
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body.requiresConfirmation).toBe(false);
       expect(body.completed.isCompleted).toBe(true);
       expect(body.completed.subtasks.every((subtask: any) => subtask.isCompleted)).toBe(true);
     });
