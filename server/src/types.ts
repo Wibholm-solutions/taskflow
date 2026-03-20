@@ -74,9 +74,8 @@ export interface TaskResponse {
 }
 
 export interface CompleteTaskResult {
-  completed: TaskResponse | null;
+  completed: TaskResponse;
   nextInstance: TaskResponse | null;
-  requiresConfirmation: boolean;
 }
 
 export interface ReorderTasksInput {
