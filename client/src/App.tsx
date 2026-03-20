@@ -127,7 +127,7 @@ export default function App() {
         editTask={editingTask}
       />
       {error && <Toast message={error} onDismiss={clearError} />}
-      <FeedbackButton repo="saabendtsen/taskflow" position="bottom-left" />
+      <FeedbackButton repo="saabendtsen/taskflow" apiUrl="https://wibholmsolutions.com/api/feedback" position="bottom-left" />
     </div>
   );
 }
