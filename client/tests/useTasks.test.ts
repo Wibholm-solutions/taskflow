@@ -144,7 +144,6 @@ describe('useTasks', () => {
           })),
         },
         nextInstance: null,
-        requiresConfirmation: false,
       } as any);
 
     const { result } = renderHook(() => useTasks());
@@ -200,7 +199,6 @@ describe('useTasks', () => {
       .mockResolvedValueOnce({
         completed: { ...taskB, isCompleted: true, completedAt: '2026-03-15T01:00:00.000Z' },
         nextInstance: null,
-        requiresConfirmation: false,
       } as any);
 
     const { result } = renderHook(() => useTasks());
@@ -246,7 +244,6 @@ describe('useTasks', () => {
       .mockResolvedValueOnce({
         completed: { ...taskC, isCompleted: true, completedAt: '2026-03-15T01:00:00.000Z' },
         nextInstance: null,
-        requiresConfirmation: false,
       } as any);
 
     const { result } = renderHook(() => useTasks());
