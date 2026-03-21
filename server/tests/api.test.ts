@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Hono } from 'hono';
 import { createTaskRoutes } from '../src/routes/tasks';
 import { authMiddleware } from '../src/middleware/auth';
@@ -284,7 +284,9 @@ describe('Task API', () => {
       expect(body.active.map((task: any) => task.title)).toEqual(['Second', 'First']);
     });
 
-    it.fails('rejects duplicate, missing, upcoming, completed, and cross-bucket ids', async () => {
+    it('rejects duplicate, missing, upcoming, completed, and cross-bucket ids', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-03-16T10:00:00.000Z'));
       const firstRes = await app.request('/todo/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -339,6 +341,8 @@ describe('Task API', () => {
       const listRes = await app.request('/todo/api/tasks');
       const body = await listRes.json();
       expect(body.active.map((task: any) => task.title)).toEqual(['High', 'First', 'Second']);
+
+      vi.useRealTimers();
     });
   });
 
