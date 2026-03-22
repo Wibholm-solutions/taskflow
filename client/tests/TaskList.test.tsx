@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { TaskList } from '../src/components/TaskList';
 import type { Task } from '../src/types';
 
@@ -71,5 +71,36 @@ describe('TaskList', () => {
     fireEvent.drop(screen.getByTestId('task-normal'));
 
     expect(onReorder).not.toHaveBeenCalled();
+  });
+
+  it('applies drag styling to the dragged task during touch drag', () => {
+    vi.useFakeTimers();
+    const first = createTask({ id: 'a', title: 'A', priority: 'default' });
+    const second = createTask({ id: 'b', title: 'B', priority: 'default', sortOrder: 1 });
+
+    render(
+      <TaskList
+        active={[first, second]}
+        upcoming={[]}
+        loading={false}
+        onComplete={() => {}}
+        onDelete={() => {}}
+        onTap={() => {}}
+        onReorder={() => {}}
+      />
+    );
+
+    // Long-press on drag handle
+    fireEvent.touchStart(screen.getByTestId('task-drag-handle-a'), {
+      touches: [{ clientX: 50, clientY: 25 }],
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(350);
+    });
+
+    // The dragged task wrapper should have data-dragging
+    expect(screen.getByTestId('task-a').getAttribute('data-dragging')).toBe('true');
+    vi.useRealTimers();
   });
 });

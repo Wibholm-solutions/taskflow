@@ -1,5 +1,6 @@
 import { TaskItem } from './TaskItem';
 import { useState } from 'react';
+import { useTouchDrag } from '../hooks/useTouchDrag';
 import type { Task } from '../types';
 
 interface TaskListProps {
@@ -29,6 +30,12 @@ export function TaskList({
     const urgency = task.deadline && task.deadline <= today ? `due:${task.deadline}` : 'active';
     return `${urgency}:${task.priority}`;
   };
+
+  const { dragState, handleTouchDragStart } = useTouchDrag({
+    items: active,
+    getBucketKey,
+    onReorder,
+  });
 
   const handleDrop = (targetTask: Task) => {
     if (!draggedTaskId || draggedTaskId === targetTask.id) {
@@ -75,6 +82,8 @@ export function TaskList({
     );
   }
 
+  const isDragging = dragState !== null;
+
   return (
     <div>
       {active.length > 0 && (
@@ -82,26 +91,37 @@ export function TaskList({
           <h2 className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-2">
             Aktive
           </h2>
-          {active.map((task) => (
-            <div
-              key={task.id}
-              data-testid={`task-${task.id}`}
-              data-bucket={getBucketKey(task)}
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={() => handleDrop(task)}
-            >
-              <TaskItem
-                task={task}
-                onComplete={onComplete}
-                onDelete={onDelete}
-                onTap={onTap}
-                canDrag
-                onDragStart={(dragTask) => setDraggedTaskId(dragTask.id)}
-                onDragEnd={() => setDraggedTaskId(null)}
-                onTouchDragStart={(dragTask) => setDraggedTaskId(dragTask.id)}
-              />
-            </div>
-          ))}
+          {active.map((task, index) => {
+            const isBeingDragged = dragState?.draggedId === task.id;
+            const showIndicatorBefore = isDragging && dragState.overIndex === index && dragState.draggedId !== task.id;
+
+            return (
+              <div key={task.id}>
+                {showIndicatorBefore && (
+                  <div data-testid="drag-indicator" className="h-0.5 bg-blue-500 rounded mx-1 my-1" />
+                )}
+                <div
+                  data-testid={`task-${task.id}`}
+                  data-bucket={getBucketKey(task)}
+                  data-dragging={isBeingDragged ? 'true' : undefined}
+                  className={isBeingDragged ? 'scale-[1.02] shadow-lg opacity-70 z-10 relative' : ''}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={() => handleDrop(task)}
+                >
+                  <TaskItem
+                    task={task}
+                    onComplete={onComplete}
+                    onDelete={onDelete}
+                    onTap={onTap}
+                    canDrag
+                    onDragStart={(dragTask) => setDraggedTaskId(dragTask.id)}
+                    onDragEnd={() => setDraggedTaskId(null)}
+                    onTouchDragStart={handleTouchDragStart}
+                  />
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
