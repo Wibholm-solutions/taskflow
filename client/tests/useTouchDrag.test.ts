@@ -312,4 +312,76 @@ describe('useTouchDrag', () => {
 
     expect(result.current.dragState).toBeNull();
   });
+
+  it('clamps overIndex to valid range when touch is beyond last item', () => {
+    const task1 = createTask({ id: 'a', sortOrder: 0 });
+    const task2 = createTask({ id: 'b', sortOrder: 1 });
+
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    ['a', 'b'].forEach((id, i) => {
+      const el = document.createElement('div');
+      el.setAttribute('data-testid', `task-${id}`);
+      el.getBoundingClientRect = () => ({
+        top: i * 60, bottom: (i + 1) * 60,
+        left: 0, right: 300, width: 300, height: 60, x: 0, y: i * 60,
+        toJSON() {},
+      });
+      container.appendChild(el);
+    });
+
+    const { result } = renderHook(() =>
+      useTouchDrag({
+        items: [task1, task2],
+        getBucketKey: () => 'bucket-a',
+        onReorder: vi.fn(),
+      })
+    );
+
+    act(() => {
+      result.current.handleTouchDragStart(task1, { clientX: 100, clientY: 30 } as React.Touch);
+    });
+
+    // Touch far below all items
+    act(() => {
+      dispatchTouchEvent(document, 'touchmove', 100, 9999);
+    });
+
+    // Should clamp to last index (1), not go out of bounds
+    expect(result.current.dragState?.overIndex).toBe(1);
+
+    document.body.removeChild(container);
+  });
+
+  it('resets on touchend if dragged task was removed during drag', () => {
+    const task1 = createTask({ id: 'a', sortOrder: 0 });
+    const task2 = createTask({ id: 'b', sortOrder: 1 });
+    const onReorder = vi.fn();
+
+    const items = [task1, task2];
+    const { result, rerender } = renderHook(
+      ({ items: hookItems }) =>
+        useTouchDrag({
+          items: hookItems,
+          getBucketKey: () => 'bucket-a',
+          onReorder,
+        }),
+      { initialProps: { items } }
+    );
+
+    act(() => {
+      result.current.handleTouchDragStart(task1, { clientX: 100, clientY: 30 } as React.Touch);
+    });
+
+    // Remove task1 from items (simulating deletion during drag)
+    rerender({ items: [task2] });
+
+    act(() => {
+      dispatchTouchEvent(document, 'touchend', 100, 30);
+    });
+
+    // Should not call onReorder since dragged task no longer exists
+    expect(onReorder).not.toHaveBeenCalled();
+    expect(result.current.dragState).toBeNull();
+  });
 });
