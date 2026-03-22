@@ -107,7 +107,7 @@ describe('TaskItem', () => {
     expect(onTap).toHaveBeenCalledWith(baseTask);
   });
 
-  it('starts drag mode after a long press on the handle', () => {
+  it('starts drag mode after a long press on the handle with touch object', () => {
     vi.useFakeTimers();
     const onTouchDragStart = vi.fn();
 
@@ -123,14 +123,48 @@ describe('TaskItem', () => {
     );
 
     fireEvent.touchStart(screen.getByTestId(`task-drag-handle-${baseTask.id}`), {
-      touches: [{ clientX: 0, clientY: 0 }],
+      touches: [{ clientX: 42, clientY: 99 }],
     });
 
     act(() => {
       vi.advanceTimersByTime(350);
     });
 
-    expect(onTouchDragStart).toHaveBeenCalledWith(baseTask);
+    expect(onTouchDragStart).toHaveBeenCalledWith(baseTask, expect.objectContaining({ clientX: 42, clientY: 99 }));
+    vi.useRealTimers();
+  });
+
+  it('cancels long-press when finger moves on drag handle', () => {
+    vi.useFakeTimers();
+    const onTouchDragStart = vi.fn();
+
+    render(
+      <TaskItem
+        task={baseTask}
+        onComplete={() => {}}
+        onDelete={() => {}}
+        onTap={() => {}}
+        canDrag
+        onTouchDragStart={onTouchDragStart}
+      />
+    );
+
+    const handle = screen.getByTestId(`task-drag-handle-${baseTask.id}`);
+
+    fireEvent.touchStart(handle, {
+      touches: [{ clientX: 0, clientY: 0 }],
+    });
+
+    // Move finger before 300ms
+    fireEvent.touchMove(handle, {
+      touches: [{ clientX: 10, clientY: 10 }],
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(350);
+    });
+
+    expect(onTouchDragStart).not.toHaveBeenCalled();
     vi.useRealTimers();
   });
 });
