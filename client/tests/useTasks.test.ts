@@ -270,6 +270,62 @@ describe('useTasks', () => {
     expect(result.current.error).toBe('Network error');
   });
 
+  it('should restore only the deleted task on delete failure instead of stale list snapshots', async () => {
+    const taskC = {
+      id: '3',
+      title: 'Task C',
+      description: null,
+      deadline: null,
+      priority: 'default',
+      isCompleted: false,
+      completedAt: null,
+      notBefore: null,
+      recurrenceGroupId: null,
+      recurrenceRule: null,
+      createdAt: '2026-03-15T00:00:00.000Z',
+      updatedAt: '2026-03-15T00:00:00.000Z',
+      subtasks: [],
+    } as any;
+
+    let rejectDeleteB!: (error: Error) => void;
+    vi.mocked(api.listTasks)
+      .mockResolvedValueOnce({ active: [taskB, taskC], upcoming: [] })
+      .mockResolvedValueOnce({ active: [taskB], upcoming: [] });
+    vi.mocked(api.deleteTask)
+      .mockImplementationOnce(() => new Promise((_, reject) => { rejectDeleteB = reject; }));
+    vi.mocked(api.completeTask)
+      .mockResolvedValueOnce({
+        completed: { ...taskC, isCompleted: true, completedAt: '2026-03-15T01:00:00.000Z' },
+        nextInstance: null,
+      } as any);
+
+    const { result } = renderHook(() => useTasks());
+    await waitFor(() => expect(result.current.active).toHaveLength(2));
+
+    // Delete taskB — optimistically removed, active = [taskC]
+    act(() => {
+      result.current.deleteTask(taskB.id);
+    });
+
+    await waitFor(() => expect(result.current.active).toEqual([taskC]));
+
+    // Complete taskC while delete is in flight — active = []
+    act(() => {
+      result.current.completeTask(taskC.id);
+    });
+
+    await waitFor(() => expect(result.current.active).toHaveLength(0));
+
+    // Reject taskB's delete — only taskB should be restored
+    act(() => {
+      rejectDeleteB(new Error('Network error'));
+    });
+
+    await waitFor(() => expect(result.current.active).toEqual([taskB]));
+    expect(result.current.active).not.toContainEqual(taskC);
+    expect(result.current.error).toBe('Network error');
+  });
+
   it('should clear pending confirmation when the pending task is deleted', async () => {
     vi.mocked(api.listTasks).mockResolvedValue({ active: [parentTask], upcoming: [] });
     vi.mocked(api.completeTask).mockRejectedValue(new Error('subtasks_confirmation_required'));
