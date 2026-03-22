@@ -154,8 +154,9 @@ export function useTasks() {
   }, []);
 
   const deleteTask = useCallback((id: string) => {
-    const prevActive = active;
-    const prevUpcoming = upcoming;
+    const taskLocation = findTaskLocation(active, upcoming, id);
+    const task = taskLocation.task;
+
     setActive((prev) => prev.filter((t) => t.id !== id));
     setUpcoming((prev) => prev.filter((t) => t.id !== id));
     setPendingCompletionTask((current) => (
@@ -163,8 +164,12 @@ export function useTasks() {
     ));
 
     api.deleteTask(id).catch((e: any) => {
-      setActive(prevActive);
-      setUpcoming(prevUpcoming);
+      if (taskLocation.list === 'active' && task) {
+        setActive((current) => restoreTaskInList(current, task, taskLocation.index));
+      }
+      if (taskLocation.list === 'upcoming' && task) {
+        setUpcoming((current) => restoreTaskInList(current, task, taskLocation.index));
+      }
       setError(e.message);
     });
   }, [active, upcoming]);
