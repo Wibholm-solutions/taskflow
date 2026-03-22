@@ -71,6 +71,9 @@ jobs:
       - name: Build app for E2E
         run: npm run build
 
+      - name: Kill stale processes on port 3000
+        run: lsof -ti:3000 | xargs -r kill -9 || true
+
       - name: Run end-to-end verification
         run: npm run test:e2e
         env:
