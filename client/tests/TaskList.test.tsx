@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { TaskList } from '../src/components/TaskList';
 import type { Task } from '../src/types';
 
@@ -71,5 +71,68 @@ describe('TaskList', () => {
     fireEvent.drop(screen.getByTestId('task-normal'));
 
     expect(onReorder).not.toHaveBeenCalled();
+  });
+
+  it('applies data-dragging attribute to dragged task after touch drag start', () => {
+    vi.useFakeTimers();
+    const first = createTask({ id: 'a', title: 'A', priority: 'default' });
+    const second = createTask({ id: 'b', title: 'B', priority: 'default', sortOrder: 1 });
+
+    render(
+      <TaskList
+        active={[first, second]}
+        upcoming={[]}
+        loading={false}
+        onComplete={() => {}}
+        onDelete={() => {}}
+        onTap={() => {}}
+        onReorder={() => {}}
+      />
+    );
+
+    // Long-press on first task's drag handle
+    fireEvent.touchStart(screen.getByTestId('task-drag-handle-a'), {
+      touches: [{ clientX: 100, clientY: 30 }],
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(350);
+    });
+
+    expect(screen.getByTestId('task-a').getAttribute('data-dragging')).toBe('true');
+    expect(screen.getByTestId('task-b').getAttribute('data-dragging')).toBeNull();
+
+    vi.useRealTimers();
+  });
+
+  it('shows drag indicator at correct position during drag', () => {
+    vi.useFakeTimers();
+    const first = createTask({ id: 'a', title: 'A', priority: 'default' });
+    const second = createTask({ id: 'b', title: 'B', priority: 'default', sortOrder: 1 });
+
+    render(
+      <TaskList
+        active={[first, second]}
+        upcoming={[]}
+        loading={false}
+        onComplete={() => {}}
+        onDelete={() => {}}
+        onTap={() => {}}
+        onReorder={() => {}}
+      />
+    );
+
+    // Long-press to start drag
+    fireEvent.touchStart(screen.getByTestId('task-drag-handle-a'), {
+      touches: [{ clientX: 100, clientY: 30 }],
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(350);
+    });
+
+    expect(screen.queryByTestId('drag-indicator')).toBeTruthy();
+
+    vi.useRealTimers();
   });
 });
