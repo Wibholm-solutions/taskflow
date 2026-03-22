@@ -11,7 +11,7 @@ interface TaskItemProps {
   canDrag?: boolean;
   onDragStart?: (task: Task) => void;
   onDragEnd?: () => void;
-  onTouchDragStart?: (task: Task) => void;
+  onTouchDragStart?: (task: Task, touch: React.Touch) => void;
 }
 
 export function formatDeadline(deadline: string): string {
@@ -118,11 +118,13 @@ export function TaskItem({
               onTouchStart={(event) => {
                 event.stopPropagation();
                 clearTouchTimer();
+                const touch = event.touches[0];
                 touchTimerRef.current = window.setTimeout(() => {
-                  onTouchDragStart?.(task);
+                  onTouchDragStart?.(task, touch);
                   touchTimerRef.current = null;
                 }, 300);
               }}
+              onTouchMove={clearTouchTimer}
               onTouchEnd={clearTouchTimer}
               onTouchCancel={clearTouchTimer}
             >

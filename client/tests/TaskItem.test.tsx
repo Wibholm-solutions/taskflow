@@ -130,7 +130,41 @@ describe('TaskItem', () => {
       vi.advanceTimersByTime(350);
     });
 
-    expect(onTouchDragStart).toHaveBeenCalledWith(baseTask);
+    expect(onTouchDragStart).toHaveBeenCalledWith(baseTask, expect.objectContaining({ clientX: 0, clientY: 0 }));
+    vi.useRealTimers();
+  });
+
+  it('cancels touch drag timer when finger moves before 300ms', () => {
+    vi.useFakeTimers();
+    const onTouchDragStart = vi.fn();
+
+    render(
+      <TaskItem
+        task={baseTask}
+        onComplete={() => {}}
+        onDelete={() => {}}
+        onTap={() => {}}
+        canDrag
+        onTouchDragStart={onTouchDragStart}
+      />
+    );
+
+    const handle = screen.getByTestId(`task-drag-handle-${baseTask.id}`);
+
+    fireEvent.touchStart(handle, {
+      touches: [{ clientX: 50, clientY: 100 }],
+    });
+
+    // Move finger before 300ms
+    fireEvent.touchMove(handle, {
+      touches: [{ clientX: 50, clientY: 130 }],
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(350);
+    });
+
+    expect(onTouchDragStart).not.toHaveBeenCalled();
     vi.useRealTimers();
   });
 });
