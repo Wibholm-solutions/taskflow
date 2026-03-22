@@ -326,6 +326,51 @@ describe('useTasks', () => {
     expect(result.current.error).toBe('Network error');
   });
 
+  it('should restore a deleted upcoming task on failure without clobbering active list', async () => {
+    const upcomingTask = {
+      id: '4',
+      title: 'Upcoming Task',
+      description: null,
+      deadline: null,
+      priority: 'default',
+      isCompleted: false,
+      completedAt: null,
+      notBefore: '2026-04-01T00:00:00.000Z',
+      recurrenceGroupId: null,
+      recurrenceRule: null,
+      createdAt: '2026-03-15T00:00:00.000Z',
+      updatedAt: '2026-03-15T00:00:00.000Z',
+      subtasks: [],
+    } as any;
+
+    let rejectDelete!: (error: Error) => void;
+    vi.mocked(api.listTasks)
+      .mockResolvedValueOnce({ active: [taskB], upcoming: [upcomingTask] });
+    vi.mocked(api.deleteTask)
+      .mockImplementationOnce(() => new Promise((_, reject) => { rejectDelete = reject; }));
+
+    const { result } = renderHook(() => useTasks());
+    await waitFor(() => {
+      expect(result.current.active).toHaveLength(1);
+      expect(result.current.upcoming).toHaveLength(1);
+    });
+
+    act(() => {
+      result.current.deleteTask(upcomingTask.id);
+    });
+
+    expect(result.current.upcoming).toHaveLength(0);
+    expect(result.current.active).toEqual([taskB]);
+
+    act(() => {
+      rejectDelete(new Error('Server error'));
+    });
+
+    await waitFor(() => expect(result.current.upcoming).toEqual([upcomingTask]));
+    expect(result.current.active).toEqual([taskB]);
+    expect(result.current.error).toBe('Server error');
+  });
+
   it('should clear pending confirmation when the pending task is deleted', async () => {
     vi.mocked(api.listTasks).mockResolvedValue({ active: [parentTask], upcoming: [] });
     vi.mocked(api.completeTask).mockRejectedValue(new Error('subtasks_confirmation_required'));
