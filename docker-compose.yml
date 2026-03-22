@@ -11,4 +11,6 @@ services:
       DATABASE_PATH: /app/data/taskflow.db
       BASE_PATH: /todo
       NODE_ENV: production
+    labels:
+      - "dashboard.healthcheck.url=http://localhost:3101/todo/api/health"
     restart: unless-stopped
