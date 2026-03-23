@@ -24,9 +24,6 @@ test.describe('Touch drag-and-drop reordering', () => {
     const endY = targetBox.y + targetBox.height - 5;
 
     // Simulate long-press: touchstart, wait 350ms, then touchmove to target, then touchend
-    await page.touchscreen.tap(startX, startY); // This won't work for long-press, use dispatchEvent
-
-    // Use page.evaluate for precise touch event control
     await page.evaluate(
       ({ sx, sy, ey }) => {
         const handle = document.querySelector('[data-testid]')?.closest('[data-testid]');
