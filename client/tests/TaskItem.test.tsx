@@ -134,6 +134,41 @@ describe('TaskItem', () => {
     vi.useRealTimers();
   });
 
+  it('shows notBefore date for upcoming task', () => {
+    const futureDate = '2026-12-15';
+    const task = { ...baseTask, notBefore: futureDate };
+    const { container } = render(
+      <TaskItem task={task} onComplete={() => {}} onDelete={() => {}} onTap={() => {}} upcoming />
+    );
+    expect(screen.getByText(/15\. dec\./)).toBeTruthy();
+    expect(container.querySelector('.text-purple-400')).toBeTruthy();
+  });
+
+  it('shows notBefore date for active task with past notBefore', () => {
+    const pastDate = '2026-01-10';
+    const task = { ...baseTask, notBefore: pastDate };
+    const { container } = render(
+      <TaskItem task={task} onComplete={() => {}} onDelete={() => {}} onTap={() => {}} />
+    );
+    expect(container.querySelector('.text-purple-400')).toBeTruthy();
+  });
+
+  it('does not show notBefore indicator when null', () => {
+    const { container } = render(
+      <TaskItem task={baseTask} onComplete={() => {}} onDelete={() => {}} onTap={() => {}} />
+    );
+    expect(container.querySelector('.text-purple-400')).toBeNull();
+  });
+
+  it('shows both deadline and notBefore when both are set', () => {
+    const today = new Date().toISOString().split('T')[0];
+    const futureDate = '2026-12-15';
+    const task = { ...baseTask, deadline: today, notBefore: futureDate };
+    render(<TaskItem task={task} onComplete={() => {}} onDelete={() => {}} onTap={() => {}} />);
+    expect(screen.getByText('i dag')).toBeTruthy();
+    expect(screen.getByText(/15\. dec\./)).toBeTruthy();
+  });
+
   it('cancels long-press when finger moves on drag handle', () => {
     vi.useFakeTimers();
     const onTouchDragStart = vi.fn();
