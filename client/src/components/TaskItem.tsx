@@ -136,6 +136,11 @@ export function TaskItem({
               {task.title}
             </span>
             <div className="flex items-center gap-2 mt-1 text-xs">
+              {task.notBefore && (
+                <span className="text-purple-400" title="Startdato">
+                  &#x25B7; {formatDeadline(task.notBefore)}
+                </span>
+              )}
               {task.deadline && (
                 <span className={deadlineColor}>{formatDeadline(task.deadline)}</span>
               )}
