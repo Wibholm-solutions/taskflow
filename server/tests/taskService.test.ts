@@ -537,22 +537,22 @@ describe('TaskService', () => {
       ]);
     });
 
-    it.fails('should assign recurrenceGroupId when adding a recurrence rule via update, enabling complete() to spawn next instance', async () => {
+    it('should assign recurrenceGroupId when adding a recurrence rule via update, enabling complete() to spawn next instance', async () => {
       // Start as a one-time task
-      const task = await service.create({ title: 'One-time' });
+      const task = await service.create({ title: 'One-time' }, userId);
       expect(task.recurrenceGroupId).toBeNull();
 
       // Convert to recurring via update
       const updated = await service.update(task.id, {
         recurrenceRule: { type: 'days_after', interval: 7 },
-      });
+      }, userId);
 
       // update() must now set recurrenceGroupId
       expect(updated.recurrenceGroupId).toBeTruthy();
       expect(updated.recurrenceRule).toEqual({ type: 'days_after', interval: 7 });
 
       // complete() must spawn the next instance
-      const result = await service.complete(updated.id);
+      const result = await service.complete(updated.id, {}, userId);
       expect(result.nextInstance).not.toBeNull();
       expect(result.nextInstance!.recurrenceGroupId).toBe(updated.recurrenceGroupId);
     });

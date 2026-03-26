@@ -58,7 +58,7 @@ client/src/
 
 ## Known State
 - `coverage/` er gitignored — genererede rapporter hører ikke i git
-- recurrenceGroupId-via-update test kører som `it.fails()` canary — fjern ikke uden at fixe den underliggende bug
+- recurrenceGroupId-via-update bug fixed in issue #31 — test was missing userId args
 - PR #32 afventer CI for at lukke issue #17
 
 ## Status
