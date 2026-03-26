@@ -80,6 +80,9 @@ jobs:
           CI: true
           DISPLAY: ":99"
 
+  # NOTE: This job is a personal deployment example using a self-hosted runner and a
+  # local deploy script (~/scripts/deploy.sh). It will not work out-of-the-box for
+  # other setups. Replace or remove it to match your own deployment infrastructure.
   deploy:
     if: github.event_name == 'push'
     needs: [unit_coverage, build, e2e]

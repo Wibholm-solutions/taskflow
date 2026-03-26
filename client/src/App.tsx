@@ -127,7 +127,13 @@ export default function App() {
         editTask={editingTask}
       />
       {error && <Toast message={error} onDismiss={clearError} />}
-      <FeedbackButton repo="saabendtsen/taskflow" apiUrl="https://wibholmsolutions.com/api/feedback" position="bottom-left" />
+      {import.meta.env.VITE_FEEDBACK_REPO && (
+        <FeedbackButton
+          repo={import.meta.env.VITE_FEEDBACK_REPO}
+          apiUrl={import.meta.env.VITE_FEEDBACK_URL}
+          position="bottom-left"
+        />
+      )}
     </div>
   );
 }

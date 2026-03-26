@@ -1,8 +1,13 @@
 {
   "name": "taskflow",
   "version": "1.0.0",
-  "private": true,
   "type": "module",
+  "license": "MIT",
+  "author": "Søren Aabendtsen",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/saabendtsen/taskflow"
+  },
   "scripts": {
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "tsx watch server/src/index.ts",

@@ -57,9 +57,8 @@ client/src/
 - TDD: tests written before implementation
 
 ## Known State
-- `coverage/` er gitignored — genererede rapporter hører ikke i git
-- recurrenceGroupId-via-update test kører som `it.fails()` canary — fjern ikke uden at fixe den underliggende bug
-- PR #32 afventer CI for at lukke issue #17
+- `coverage/` is gitignored — generated reports don't belong in git
+- recurrenceGroupId-via-update test runs as `it.fails()` canary — do not remove without fixing the underlying bug
 
 ## Status
 - [x] Project scaffolding
