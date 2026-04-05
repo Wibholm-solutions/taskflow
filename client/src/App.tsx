@@ -6,6 +6,7 @@ import { TaskModal } from './components/TaskModal';
 import { FloatingAddButton } from './components/FloatingAddButton';
 import { Toast } from './components/Toast';
 import { FeedbackButton } from './components/FeedbackButton';
+import { CompletionSnackbar } from './components/CompletionSnackbar';
 import type { Task, TaskFormInput, UpdateTaskInput } from './types';
 
 export default function App() {
@@ -24,6 +25,8 @@ export default function App() {
     reorderTasks,
     clearError,
     refresh,
+    pendingCompletions,
+    undoCompletion,
   } = useTasks();
   const { pullDistance, isRefreshing } = usePullToRefresh({ onRefresh: refresh });
   const [modalOpen, setModalOpen] = useState(false);
@@ -126,6 +129,7 @@ export default function App() {
         onDelete={editingTask ? handleDelete : undefined}
         editTask={editingTask}
       />
+      <CompletionSnackbar pendingCompletions={pendingCompletions} onUndo={undoCompletion} />
       {error && <Toast message={error} onDismiss={clearError} />}
       <FeedbackButton repo="saabendtsen/taskflow" apiUrl="https://wibholmsolutions.com/api/feedback" position="bottom-left" />
     </div>

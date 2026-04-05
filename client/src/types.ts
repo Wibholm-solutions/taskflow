@@ -85,3 +85,12 @@ export interface CompleteResponse {
   completed: Task;
   nextInstance: Task | null;
 }
+
+export interface PendingCompletion {
+  taskId: string;
+  taskSnapshot: Task;
+  originalList: 'active' | 'upcoming';
+  originalIndex: number;
+  completeRemainingSubtasks: boolean;
+  timerId: ReturnType<typeof setTimeout>;
+}

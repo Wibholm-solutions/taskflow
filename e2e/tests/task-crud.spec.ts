@@ -178,6 +178,8 @@ test.describe('Task CRUD', () => {
 
     await swipeTaskToComplete(page, 'Plan weekendtur');
     await page.getByRole('button', { name: 'Complete all' }).click();
+    // Task enters undo delay queue — wait for snackbar to clear
+    await expect(page.getByRole('button', { name: /undo/i })).not.toBeVisible({ timeout: 7000 });
     await expect(taskTitle(page, 'Plan weekendtur')).not.toBeVisible();
   });
 });
