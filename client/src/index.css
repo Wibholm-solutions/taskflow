@@ -1,1 +1,15 @@
 @import "tailwindcss";
+
+@theme {
+  --animate-slide-up: slide-up 200ms ease-out;
+}
+
+@keyframes shrink {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(1rem); }
+  to { opacity: 1; transform: translateY(0); }
+}

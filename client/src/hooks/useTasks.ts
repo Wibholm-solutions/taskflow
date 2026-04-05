@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../services/api';
-import type { Task, CreateTaskInput, UpdateTaskInput } from '../types';
+import type { Task, CreateTaskInput, UpdateTaskInput, PendingCompletion } from '../types';
+
+const UNDO_DELAY_MS = 5000;
+const MAX_PENDING = 3;
 
 interface TaskLocation {
   task: Task | null;
@@ -62,6 +65,7 @@ export function useTasks() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pendingCompletionTask, setPendingCompletionTask] = useState<Task | null>(null);
+  const [pendingCompletions, setPendingCompletions] = useState<PendingCompletion[]>([]);
 
   const clearError = useCallback(() => setError(null), []);
 
@@ -104,36 +108,90 @@ export function useTasks() {
     const taskLocation = findTaskLocation(active, upcoming, id);
     const task = taskLocation.task;
 
+    if (!task || !taskLocation.list) return;
+
     setActive((prev) => prev.filter((t) => t.id !== id));
     setUpcoming((prev) => prev.filter((t) => t.id !== id));
     setError(null);
 
-    api.completeTask(
-      id,
-      confirmRemainingSubtasks ? { completeRemainingSubtasks: true } : undefined,
-    ).then(() => {
-      setPendingCompletionTask((current) => (
-        current?.id === id ? null : current
-      ));
-      refresh();
-    }).catch((e: any) => {
-      if (taskLocation.list === 'active' && task) {
-        setActive((current) => restoreTaskInList(current, task, taskLocation.index));
-      }
+    // Tasks with incomplete subtasks hit the API immediately for the 409 confirmation flow
+    if (!confirmRemainingSubtasks && task.subtasks?.some((s: any) => !s.isCompleted)) {
+      api.completeTask(id, undefined).then(() => {
+        setPendingCompletionTask((current) => (
+          current?.id === id ? null : current
+        ));
+        refresh();
+      }).catch((e: any) => {
+        if (taskLocation.list === 'active' && task) {
+          setActive((current) => restoreTaskInList(current, task, taskLocation.index));
+        }
+        if (taskLocation.list === 'upcoming' && task) {
+          setUpcoming((current) => restoreTaskInList(current, task, taskLocation.index));
+        }
+        if (e.message === 'subtasks_confirmation_required' && task) {
+          setPendingCompletionTask(task);
+          return;
+        }
+        setPendingCompletionTask((current) => (
+          current?.id === id ? null : current
+        ));
+        setError(e.message);
+      });
+      return;
+    }
 
-      if (taskLocation.list === 'upcoming' && task) {
-        setUpcoming((current) => restoreTaskInList(current, task, taskLocation.index));
-      }
+    // Enqueue with delay — API call fires after UNDO_DELAY_MS
+    const entry: PendingCompletion = {
+      taskId: id,
+      taskSnapshot: task,
+      originalList: taskLocation.list,
+      originalIndex: taskLocation.index,
+      completeRemainingSubtasks: confirmRemainingSubtasks,
+      timerId: 0 as any,
+    };
 
-      if (e.message === 'subtasks_confirmation_required' && task) {
-        setPendingCompletionTask(task);
-        return;
-      }
+    entry.timerId = setTimeout(() => {
+      setPendingCompletions((prev) => prev.filter((p) => p.taskId !== id));
+      const options = confirmRemainingSubtasks ? { completeRemainingSubtasks: true } : undefined;
+      api.completeTask(id, options).then(() => {
+        setPendingCompletionTask((current) => (
+          current?.id === id ? null : current
+        ));
+        refresh();
+      }).catch((e: any) => {
+        if (entry.originalList === 'active') {
+          setActive((current) => restoreTaskInList(current, entry.taskSnapshot, entry.originalIndex));
+        } else {
+          setUpcoming((current) => restoreTaskInList(current, entry.taskSnapshot, entry.originalIndex));
+        }
+        setPendingCompletionTask((current) => (
+          current?.id === id ? null : current
+        ));
+        setError(e.message);
+      });
+    }, UNDO_DELAY_MS);
 
-      setPendingCompletionTask((current) => (
-        current?.id === id ? null : current
-      ));
-      setError(e.message);
+    setPendingCompletions((prev) => {
+      if (prev.length >= MAX_PENDING) {
+        const oldest = prev[0];
+        clearTimeout(oldest.timerId);
+        const opts = oldest.completeRemainingSubtasks ? { completeRemainingSubtasks: true } : undefined;
+        api.completeTask(oldest.taskId, opts).then(() => {
+          setPendingCompletionTask((current) => (
+            current?.id === oldest.taskId ? null : current
+          ));
+          refresh();
+        }).catch((e: any) => {
+          if (oldest.originalList === 'active') {
+            setActive((current) => restoreTaskInList(current, oldest.taskSnapshot, oldest.originalIndex));
+          } else {
+            setUpcoming((current) => restoreTaskInList(current, oldest.taskSnapshot, oldest.originalIndex));
+          }
+          setError(e.message);
+        });
+        return [...prev.slice(1), entry];
+      }
+      return [...prev, entry];
     });
   }, [active, upcoming, refresh]);
 
@@ -152,6 +210,53 @@ export function useTasks() {
   const cancelPendingCompletion = useCallback(() => {
     setPendingCompletionTask(null);
   }, []);
+
+  const undoCompletion = useCallback((taskId: string) => {
+    setPendingCompletions((prev) => {
+      const entry = prev.find((p) => p.taskId === taskId);
+      if (!entry) return prev;
+
+      clearTimeout(entry.timerId);
+
+      if (entry.originalList === 'active') {
+        setActive((current) => restoreTaskInList(current, entry.taskSnapshot, entry.originalIndex));
+      } else {
+        setUpcoming((current) => restoreTaskInList(current, entry.taskSnapshot, entry.originalIndex));
+      }
+
+      return prev.filter((p) => p.taskId !== taskId);
+    });
+  }, []);
+
+  const flushCompletions = useCallback(() => {
+    setPendingCompletions((prev) => {
+      for (const entry of prev) {
+        clearTimeout(entry.timerId);
+        const options = entry.completeRemainingSubtasks ? { completeRemainingSubtasks: true } : undefined;
+        api.completeTask(entry.taskId, options);
+      }
+      return [];
+    });
+  }, []);
+
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      for (const entry of pendingCompletions) {
+        clearTimeout(entry.timerId);
+        const body = entry.completeRemainingSubtasks
+          ? JSON.stringify({ completeRemainingSubtasks: true })
+          : undefined;
+        const url = `/todo/api/tasks/${entry.taskId}/complete`;
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon(url, body ? new Blob([body], { type: 'application/json' }) : undefined);
+        } else {
+          fetch(url, { method: 'POST', body, headers: { 'Content-Type': 'application/json' }, keepalive: true });
+        }
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [pendingCompletions]);
 
   const deleteTask = useCallback((id: string) => {
     const taskLocation = findTaskLocation(active, upcoming, id);
@@ -229,6 +334,9 @@ export function useTasks() {
     pendingCompletionTask,
     confirmPendingCompletion,
     cancelPendingCompletion,
+    pendingCompletions,
+    undoCompletion,
+    flushCompletions,
     deleteTask,
     createTask,
     updateTask,
