@@ -233,6 +233,30 @@ describe('useCompletionQueue', () => {
     expect(deps.onError).toHaveBeenCalledWith('Network error');
   });
 
+  it('unmount clears timers for pending completions', () => {
+    const deps = makeDeps();
+    const { result, unmount } = renderHook(() => useCompletionQueue(deps));
+
+    act(() => {
+      result.current.enqueue({
+        taskId: 'task-1',
+        taskSnapshot: makeTask(),
+        originalList: 'active',
+        originalIndex: 0,
+        completeRemainingSubtasks: false,
+      });
+    });
+
+    expect(result.current.pendingCompletions).toHaveLength(1);
+
+    unmount();
+
+    // After unmount, advancing timers should NOT fire onComplete
+    // because the timer was cleared during cleanup
+    vi.advanceTimersByTime(5000);
+    expect(deps.onComplete).not.toHaveBeenCalled();
+  });
+
   it('beforeunload fires sendBeacon for pending completions', () => {
     const sendBeacon = vi.fn();
     vi.stubGlobal('navigator', { sendBeacon });
