@@ -253,7 +253,7 @@ export function createTaskRoutes(service: TaskService) {
     if (validationError) return c.json({ error: validationError }, 400);
     try {
       await service.reorder(parsed.body.taskIds, userId);
-      return c.body(null, 200);
+      return c.body(null, 204);
     } catch (e: any) {
       if (e.message === 'invalid reorder payload') {
         return c.json({ error: 'invalid reorder payload' }, 400);

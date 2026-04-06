@@ -277,7 +277,7 @@ describe('Task API', () => {
         body: JSON.stringify({ taskIds: [second.id, first.id] }),
       });
 
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(204);
 
       const listRes = await app.request('/todo/api/tasks');
       const body = await listRes.json();
