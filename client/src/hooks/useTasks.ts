@@ -1,9 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../services/api';
-import type { Task, CreateTaskInput, UpdateTaskInput, PendingCompletion } from '../types';
-
-const UNDO_DELAY_MS = 5000;
-const MAX_PENDING = 3;
+import type { Task, CreateTaskInput, UpdateTaskInput } from '../types';
+import { useCompletionQueue } from './useCompletionQueue';
+import { useSubtaskConfirmation } from './useSubtaskConfirmation';
 
 interface TaskLocation {
   task: Task | null;
@@ -64,8 +63,6 @@ export function useTasks() {
   const [upcoming, setUpcoming] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [pendingCompletionTask, setPendingCompletionTask] = useState<Task | null>(null);
-  const [pendingCompletions, setPendingCompletions] = useState<PendingCompletion[]>([]);
 
   const clearError = useCallback(() => setError(null), []);
 
@@ -94,15 +91,26 @@ export function useTasks() {
     }
   }, [error]);
 
-  useEffect(() => {
-    if (!pendingCompletionTask) {
-      return;
-    }
+  const completionQueue = useCompletionQueue({
+    onComplete: (taskId, options) => api.completeTask(taskId, options),
+    onRestore: (snapshot, list, index) => {
+      if (list === 'active') {
+        setActive((current) => restoreTaskInList(current, snapshot, index));
+      } else {
+        setUpcoming((current) => restoreTaskInList(current, snapshot, index));
+      }
+    },
+    onError: (msg) => setError(msg),
+    refresh,
+  });
 
-    if (!taskExistsInState(active, upcoming, pendingCompletionTask.id)) {
-      setPendingCompletionTask(null);
-    }
-  }, [active, upcoming, pendingCompletionTask]);
+  // Ref to break circular dependency: subtaskConfirmation.onConfirm → completeTaskRequest → subtaskConfirmation
+  const completeTaskRequestRef = useRef<(id: string, confirm: boolean) => void>(() => {});
+
+  const subtaskConfirmation = useSubtaskConfirmation({
+    onConfirm: (taskId) => completeTaskRequestRef.current(taskId, true),
+    taskExistsInState: (id) => taskExistsInState(active, upcoming, id),
+  });
 
   const completeTaskRequest = useCallback((id: string, confirmRemainingSubtasks = false) => {
     const taskLocation = findTaskLocation(active, upcoming, id);
@@ -117,9 +125,7 @@ export function useTasks() {
     // Tasks with incomplete subtasks hit the API immediately for the 409 confirmation flow
     if (!confirmRemainingSubtasks && task.subtasks?.some((s: any) => !s.isCompleted)) {
       api.completeTask(id, undefined).then(() => {
-        setPendingCompletionTask((current) => (
-          current?.id === id ? null : current
-        ));
+        subtaskConfirmation.clearPending(id);
         refresh();
       }).catch((e: any) => {
         if (taskLocation.list === 'active' && task) {
@@ -129,134 +135,30 @@ export function useTasks() {
           setUpcoming((current) => restoreTaskInList(current, task, taskLocation.index));
         }
         if (e.message === 'subtasks_confirmation_required' && task) {
-          setPendingCompletionTask(task);
+          subtaskConfirmation.setPending(task);
           return;
         }
-        setPendingCompletionTask((current) => (
-          current?.id === id ? null : current
-        ));
+        subtaskConfirmation.clearPending(id);
         setError(e.message);
       });
       return;
     }
 
     // Enqueue with delay — API call fires after UNDO_DELAY_MS
-    const entry: PendingCompletion = {
+    completionQueue.enqueue({
       taskId: id,
       taskSnapshot: task,
       originalList: taskLocation.list,
       originalIndex: taskLocation.index,
       completeRemainingSubtasks: confirmRemainingSubtasks,
-      timerId: 0 as any,
-    };
-
-    entry.timerId = setTimeout(() => {
-      setPendingCompletions((prev) => prev.filter((p) => p.taskId !== id));
-      const options = confirmRemainingSubtasks ? { completeRemainingSubtasks: true } : undefined;
-      api.completeTask(id, options).then(() => {
-        setPendingCompletionTask((current) => (
-          current?.id === id ? null : current
-        ));
-        refresh();
-      }).catch((e: any) => {
-        if (entry.originalList === 'active') {
-          setActive((current) => restoreTaskInList(current, entry.taskSnapshot, entry.originalIndex));
-        } else {
-          setUpcoming((current) => restoreTaskInList(current, entry.taskSnapshot, entry.originalIndex));
-        }
-        setPendingCompletionTask((current) => (
-          current?.id === id ? null : current
-        ));
-        setError(e.message);
-      });
-    }, UNDO_DELAY_MS);
-
-    setPendingCompletions((prev) => {
-      if (prev.length >= MAX_PENDING) {
-        const oldest = prev[0];
-        clearTimeout(oldest.timerId);
-        const opts = oldest.completeRemainingSubtasks ? { completeRemainingSubtasks: true } : undefined;
-        api.completeTask(oldest.taskId, opts).then(() => {
-          setPendingCompletionTask((current) => (
-            current?.id === oldest.taskId ? null : current
-          ));
-          refresh();
-        }).catch((e: any) => {
-          if (oldest.originalList === 'active') {
-            setActive((current) => restoreTaskInList(current, oldest.taskSnapshot, oldest.originalIndex));
-          } else {
-            setUpcoming((current) => restoreTaskInList(current, oldest.taskSnapshot, oldest.originalIndex));
-          }
-          setError(e.message);
-        });
-        return [...prev.slice(1), entry];
-      }
-      return [...prev, entry];
     });
-  }, [active, upcoming, refresh]);
+  }, [active, upcoming, refresh, completionQueue, subtaskConfirmation]);
+
+  completeTaskRequestRef.current = completeTaskRequest;
 
   const completeTask = useCallback((id: string) => {
     completeTaskRequest(id);
   }, [completeTaskRequest]);
-
-  const confirmPendingCompletion = useCallback(() => {
-    if (!pendingCompletionTask) {
-      return;
-    }
-
-    completeTaskRequest(pendingCompletionTask.id, true);
-  }, [completeTaskRequest, pendingCompletionTask]);
-
-  const cancelPendingCompletion = useCallback(() => {
-    setPendingCompletionTask(null);
-  }, []);
-
-  const undoCompletion = useCallback((taskId: string) => {
-    setPendingCompletions((prev) => {
-      const entry = prev.find((p) => p.taskId === taskId);
-      if (!entry) return prev;
-
-      clearTimeout(entry.timerId);
-
-      if (entry.originalList === 'active') {
-        setActive((current) => restoreTaskInList(current, entry.taskSnapshot, entry.originalIndex));
-      } else {
-        setUpcoming((current) => restoreTaskInList(current, entry.taskSnapshot, entry.originalIndex));
-      }
-
-      return prev.filter((p) => p.taskId !== taskId);
-    });
-  }, []);
-
-  const flushCompletions = useCallback(() => {
-    setPendingCompletions((prev) => {
-      for (const entry of prev) {
-        clearTimeout(entry.timerId);
-        const options = entry.completeRemainingSubtasks ? { completeRemainingSubtasks: true } : undefined;
-        api.completeTask(entry.taskId, options);
-      }
-      return [];
-    });
-  }, []);
-
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      for (const entry of pendingCompletions) {
-        clearTimeout(entry.timerId);
-        const body = entry.completeRemainingSubtasks
-          ? JSON.stringify({ completeRemainingSubtasks: true })
-          : undefined;
-        const url = `/todo/api/tasks/${entry.taskId}/complete`;
-        if (navigator.sendBeacon) {
-          navigator.sendBeacon(url, body ? new Blob([body], { type: 'application/json' }) : undefined);
-        } else {
-          fetch(url, { method: 'POST', body, headers: { 'Content-Type': 'application/json' }, keepalive: true });
-        }
-      }
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [pendingCompletions]);
 
   const deleteTask = useCallback((id: string) => {
     const taskLocation = findTaskLocation(active, upcoming, id);
@@ -264,9 +166,7 @@ export function useTasks() {
 
     setActive((prev) => prev.filter((t) => t.id !== id));
     setUpcoming((prev) => prev.filter((t) => t.id !== id));
-    setPendingCompletionTask((current) => (
-      current?.id === id ? null : current
-    ));
+    subtaskConfirmation.clearPending(id);
 
     api.deleteTask(id).catch((e: any) => {
       if (taskLocation.list === 'active' && task) {
@@ -277,7 +177,7 @@ export function useTasks() {
       }
       setError(e.message);
     });
-  }, [active, upcoming]);
+  }, [active, upcoming, subtaskConfirmation]);
 
   const createTask = useCallback(async (input: CreateTaskInput) => {
     try {
@@ -296,7 +196,6 @@ export function useTasks() {
 
     try {
       const updated = await api.updateTask(id, input);
-      // Re-fetch to get proper sorting
       await refresh();
       return updated;
     } catch (e: any) {
@@ -331,12 +230,12 @@ export function useTasks() {
     clearError,
     refresh,
     completeTask,
-    pendingCompletionTask,
-    confirmPendingCompletion,
-    cancelPendingCompletion,
-    pendingCompletions,
-    undoCompletion,
-    flushCompletions,
+    pendingCompletionTask: subtaskConfirmation.pendingCompletionTask,
+    confirmPendingCompletion: subtaskConfirmation.confirmPendingCompletion,
+    cancelPendingCompletion: subtaskConfirmation.cancelPendingCompletion,
+    pendingCompletions: completionQueue.pendingCompletions,
+    undoCompletion: completionQueue.undoCompletion,
+    flushCompletions: completionQueue.flushCompletions,
     deleteTask,
     createTask,
     updateTask,

@@ -5,7 +5,7 @@ const UNDO_DELAY_MS = 5000;
 const MAX_PENDING = 3;
 
 export interface CompletionQueueDeps {
-  onComplete: (taskId: string, options?: CompleteTaskOptions) => Promise<void>;
+  onComplete: (taskId: string, options?: CompleteTaskOptions) => Promise<unknown>;
   onRestore: (snapshot: Task, list: 'active' | 'upcoming', index: number) => void;
   onError: (message: string) => void;
   refresh: () => Promise<void>;
