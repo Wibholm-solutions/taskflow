@@ -25,19 +25,19 @@ export class ApiHelper {
   constructor(private request: APIRequestContext) {}
 
   async createTask(data: CreateTaskData) {
-    const res = await this.request.post('/todo/api/tasks', { data });
+    const res = await this.request.post('/api/tasks', { data });
     if (!res.ok()) throw new Error(`createTask failed: ${res.status()}`);
     return res.json();
   }
 
   async getTasks() {
-    const res = await this.request.get('/todo/api/tasks');
+    const res = await this.request.get('/api/tasks');
     if (!res.ok()) throw new Error(`getTasks failed: ${res.status()}`);
     return res.json();
   }
 
   async completeTask(id: string, options?: CompleteTaskOptions) {
-    const res = await this.request.post(`/todo/api/tasks/${id}/complete`, {
+    const res = await this.request.post(`/api/tasks/${id}/complete`, {
       data: options?.completeRemainingSubtasks ? options : undefined,
     });
     if (!res.ok()) throw new Error(`completeTask failed: ${res.status()}`);
@@ -48,7 +48,7 @@ export class ApiHelper {
     const { active, upcoming } = await this.getTasks();
     const all = [...active, ...upcoming];
     for (const task of all) {
-      await this.request.delete(`/todo/api/tasks/${task.id}`);
+      await this.request.delete(`/api/tasks/${task.id}`);
     }
   }
 }

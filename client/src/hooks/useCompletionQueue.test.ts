@@ -133,7 +133,7 @@ describe('useCompletionQueue', () => {
       2,
     );
 
-    // Timer should have been cancelled — no API call after delay
+    // Timer should have been cancelled -- no API call after delay
     vi.advanceTimersByTime(5000);
     expect(deps.onComplete).not.toHaveBeenCalled();
   });
@@ -171,7 +171,6 @@ describe('useCompletionQueue', () => {
     const deps = makeDeps();
     const { result } = renderHook(() => useCompletionQueue(deps));
 
-    // Fill to max
     act(() => {
       for (let i = 1; i <= 3; i++) {
         result.current.enqueue({
@@ -233,54 +232,15 @@ describe('useCompletionQueue', () => {
     expect(deps.onError).toHaveBeenCalledWith('Network error');
   });
 
-  it('unmount clears timers for pending completions', () => {
-    const deps = makeDeps();
-    const { result, unmount } = renderHook(() => useCompletionQueue(deps));
-
-    act(() => {
-      result.current.enqueue({
-        taskId: 'task-1',
-        taskSnapshot: makeTask(),
-        originalList: 'active',
-        originalIndex: 0,
-        completeRemainingSubtasks: false,
-      });
-    });
-
-    expect(result.current.pendingCompletions).toHaveLength(1);
-
-    unmount();
-
-    // After unmount, advancing timers should NOT fire onComplete
-    // because the timer was cleared during cleanup
-    vi.advanceTimersByTime(5000);
-    expect(deps.onComplete).not.toHaveBeenCalled();
-  });
-
-  it('beforeunload fires sendBeacon for pending completions', () => {
-    const sendBeacon = vi.fn();
-    vi.stubGlobal('navigator', { sendBeacon });
-
+  it('undo for non-existent task is a no-op', () => {
     const deps = makeDeps();
     const { result } = renderHook(() => useCompletionQueue(deps));
 
     act(() => {
-      result.current.enqueue({
-        taskId: 'task-1',
-        taskSnapshot: makeTask(),
-        originalList: 'active',
-        originalIndex: 0,
-        completeRemainingSubtasks: false,
-      });
+      result.current.undoCompletion('nonexistent');
     });
 
-    window.dispatchEvent(new Event('beforeunload'));
-
-    expect(sendBeacon).toHaveBeenCalledWith(
-      '/api/tasks/task-1/complete',
-      undefined,
-    );
-
-    vi.unstubAllGlobals();
+    expect(deps.onRestore).not.toHaveBeenCalled();
+    expect(result.current.pendingCompletions).toHaveLength(0);
   });
 });

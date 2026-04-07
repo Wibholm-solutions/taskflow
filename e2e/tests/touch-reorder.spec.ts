@@ -8,7 +8,7 @@ test.describe('Touch drag-and-drop reordering', () => {
     const taskB = await apiHelper.createTask({ title: 'Task B', priority: 'default' });
     const taskC = await apiHelper.createTask({ title: 'Task C', priority: 'default' });
 
-    await page.goto('/todo');
+    await page.goto('/');
     await expect(page.getByTestId(`task-${taskA.id}`)).toBeVisible();
 
     // Get drag handle and target positions

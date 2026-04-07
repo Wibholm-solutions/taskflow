@@ -1,9 +1,10 @@
 import { sql } from 'drizzle-orm';
 import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { DEFAULT_USER_ID } from '../middleware/auth.js';
 
 export const tasks = sqliteTable('tasks', {
   id: text('id').primaryKey(),
-  userId: text('user_id').notNull().default('default'),
+  userId: text('user_id').notNull().default(DEFAULT_USER_ID),
   title: text('title').notNull(),
   description: text('description'),
   deadline: text('deadline'),

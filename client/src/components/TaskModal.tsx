@@ -16,7 +16,7 @@ interface TaskModalProps {
   editTask?: Task | null;
 }
 
-const WEEKDAY_LABELS = ['S', 'M', 'T', 'O', 'T', 'F', 'L'];
+const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 interface EditableSubtask {
   id: string | null;
@@ -240,7 +240,7 @@ export function TaskModal({ isOpen, onClose, onSave, onDelete, editTask }: TaskM
           // eslint-disable-next-line jsx-a11y/no-autofocus
           autoFocus
           type="text"
-          placeholder="Hvad skal du?"
+          placeholder="What needs to be done?"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSave()}
@@ -255,7 +255,7 @@ export function TaskModal({ isOpen, onClose, onSave, onDelete, editTask }: TaskM
             onClick={() => setShowExtra(true)}
             className="text-blue-400 text-sm mb-4 block"
           >
-            Flere indstillinger
+            More options
           </button>
         )}
 
@@ -263,7 +263,7 @@ export function TaskModal({ isOpen, onClose, onSave, onDelete, editTask }: TaskM
           <div className="space-y-4 mb-4">
             {/* Description */}
             <div>
-              <label className="text-gray-400 text-xs block mb-1">Beskrivelse</label>
+              <label className="text-gray-400 text-xs block mb-1">Description</label>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
@@ -285,7 +285,7 @@ export function TaskModal({ isOpen, onClose, onSave, onDelete, editTask }: TaskM
 
             {/* Priority */}
             <div>
-              <label className="text-gray-400 text-xs block mb-1">Prioritet</label>
+              <label className="text-gray-400 text-xs block mb-1">Priority</label>
               <div className="flex gap-2">
                 {(['high', 'default', 'low'] as Priority[]).map((p) => (
                   <button
@@ -302,7 +302,7 @@ export function TaskModal({ isOpen, onClose, onSave, onDelete, editTask }: TaskM
                         : 'bg-gray-700 text-gray-300'
                     }`}
                   >
-                    {p === 'high' ? 'Høj' : p === 'default' ? 'Normal' : 'Lav'}
+                    {p === 'high' ? 'High' : p === 'default' ? 'Normal' : 'Low'}
                   </button>
                 ))}
               </div>
@@ -310,16 +310,16 @@ export function TaskModal({ isOpen, onClose, onSave, onDelete, editTask }: TaskM
 
             {/* Recurrence */}
             <div>
-              <label className="text-gray-400 text-xs block mb-1">Gentagelse</label>
+              <label className="text-gray-400 text-xs block mb-1">Recurrence</label>
               <select
                 value={recurrenceType}
                 onChange={(e) => setRecurrenceType(e.target.value as any)}
                 className="w-full bg-gray-700 text-white rounded-lg p-2 text-sm outline-none"
               >
-                <option value="none">Ingen</option>
-                <option value="weekdays">Faste ugedage</option>
-                <option value="days_after">Hver X dage</option>
-                <option value="months_after">Hver X måneder</option>
+                <option value="none">None</option>
+                <option value="weekdays">Specific weekdays</option>
+                <option value="days_after">Every X days</option>
+                <option value="months_after">Every X months</option>
               </select>
 
               {recurrenceType === 'weekdays' && (
@@ -343,7 +343,7 @@ export function TaskModal({ isOpen, onClose, onSave, onDelete, editTask }: TaskM
 
               {(recurrenceType === 'days_after' || recurrenceType === 'months_after') && (
                 <div className="flex items-center gap-2 mt-2">
-                  <span className="text-gray-400 text-sm">Hver</span>
+                  <span className="text-gray-400 text-sm">Every</span>
                   <input
                     type="number"
                     min={1}
@@ -352,7 +352,7 @@ export function TaskModal({ isOpen, onClose, onSave, onDelete, editTask }: TaskM
                     className="w-16 bg-gray-700 text-white rounded-lg p-2 text-sm outline-none text-center"
                   />
                   <span className="text-gray-400 text-sm">
-                    {recurrenceType === 'days_after' ? 'dage' : 'måneder'}
+                    {recurrenceType === 'days_after' ? 'days' : 'months'}
                   </span>
                 </div>
               )}
@@ -362,21 +362,21 @@ export function TaskModal({ isOpen, onClose, onSave, onDelete, editTask }: TaskM
 
         <div className="mb-4">
           <div className="mb-2 flex items-center justify-between">
-            <label className="text-gray-400 text-xs block">Underopgaver</label>
+            <label className="text-gray-400 text-xs block">Subtasks</label>
             <button
               type="button"
               onClick={addSubtask}
               className="text-blue-400 text-sm"
             >
-              Tilføj underopgave
+              Add subtask
             </button>
           </div>
 
           <div className="space-y-2">
             {subtasks.map((subtask, index) => {
               const trimmedTitle = subtask.title.trim();
-              const checkboxLabel = trimmedTitle || 'underopgave';
-              const deleteLabel = trimmedTitle || 'underopgave';
+              const checkboxLabel = trimmedTitle || 'subtask';
+              const deleteLabel = trimmedTitle || 'subtask';
 
               return (
                 <div key={subtask.id ?? `new-${index}`} className="flex items-center gap-2">
@@ -390,7 +390,7 @@ export function TaskModal({ isOpen, onClose, onSave, onDelete, editTask }: TaskM
                   <input
                     type="text"
                     value={subtask.title}
-                    placeholder={subtask.id ? undefined : 'Ny underopgave'}
+                    placeholder={subtask.id ? undefined : 'New subtask...'}
                     onChange={(e) => updateSubtask(index, { title: e.target.value })}
                     className="flex-1 rounded-lg bg-gray-700 px-3 py-2 text-sm text-white outline-none"
                     maxLength={200}
@@ -401,7 +401,7 @@ export function TaskModal({ isOpen, onClose, onSave, onDelete, editTask }: TaskM
                     aria-label={`Delete "${deleteLabel}"`}
                     className="rounded-lg px-2 py-2 text-sm text-gray-300 transition-colors hover:bg-gray-700"
                   >
-                    Slet
+                    Delete
                   </button>
                 </div>
               );
@@ -417,7 +417,7 @@ export function TaskModal({ isOpen, onClose, onSave, onDelete, editTask }: TaskM
               onClick={onDelete}
               className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium"
             >
-              Slet
+              Delete
             </button>
           )}
           <div className="flex-1" />
@@ -426,14 +426,14 @@ export function TaskModal({ isOpen, onClose, onSave, onDelete, editTask }: TaskM
             onClick={onClose}
             className="px-4 py-2 bg-gray-700 text-gray-300 rounded-lg text-sm"
           >
-            Annuller
+            Cancel
           </button>
           <button
             type="button"
             onClick={handleSave}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium"
           >
-            Gem
+            Save
           </button>
         </div>
       </div>

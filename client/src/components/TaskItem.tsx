@@ -20,12 +20,15 @@ export function formatDeadline(deadline: string): string {
   const target = new Date(deadline + 'T00:00:00');
   const diffDays = Math.round((target.getTime() - today.getTime()) / 86400000);
 
-  if (diffDays < 0) return `${Math.abs(diffDays)}d siden`;
-  if (diffDays === 0) return 'i dag';
-  if (diffDays === 1) return 'i morgen';
-  if (diffDays <= 7) return `om ${diffDays} dage`;
+  if (diffDays < 0) {
+    const abs = Math.abs(diffDays);
+    return abs === 1 ? '1 day ago' : `${abs} days ago`;
+  }
+  if (diffDays === 0) return 'today';
+  if (diffDays === 1) return 'tomorrow';
+  if (diffDays <= 7) return `in ${diffDays} days`;
 
-  return target.toLocaleDateString('da-DK', { day: 'numeric', month: 'short' });
+  return target.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
 }
 
 const PRIORITY_BORDER: Record<string, string> = {
@@ -137,7 +140,7 @@ export function TaskItem({
             </span>
             <div className="flex items-center gap-2 mt-1 text-xs">
               {task.notBefore && (
-                <span className="text-purple-400" title="Startdato">
+                <span className="text-purple-400" title="Show from">
                   &#x25B7; {formatDeadline(task.notBefore)}
                 </span>
               )}
