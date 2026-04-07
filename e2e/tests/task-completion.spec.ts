@@ -3,7 +3,7 @@ import { test, expect } from '../fixtures';
 test.describe('Task completion', () => {
   test('complete task via API and verify it disappears', async ({ page, apiHelper }) => {
     const task = await apiHelper.createTask({ title: 'Færdiggør mig' });
-    await page.goto('/todo');
+    await page.goto('/');
     await expect(page.getByText('Færdiggør mig')).toBeVisible();
 
     // Complete via API (swipe is unreliable in Playwright)
@@ -18,7 +18,7 @@ test.describe('Task completion', () => {
       title: 'Gentag hver 7. dag',
       recurrenceRule: { type: 'days_after', interval: 7 },
     });
-    await page.goto('/todo');
+    await page.goto('/');
     await expect(page.getByText('Gentag hver 7. dag')).toBeVisible();
 
     // Complete → should create next instance

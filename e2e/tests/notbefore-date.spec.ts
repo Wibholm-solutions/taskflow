@@ -6,7 +6,7 @@ test.describe('notBefore date display', () => {
     const futureDate = '2099-06-15';
     await apiHelper.createTask({ title: 'Fremtidig opgave', notBefore: futureDate });
 
-    await page.goto('/todo');
+    await page.goto('/');
 
     // The task should appear in the upcoming section with its notBefore date
     const taskCard = page.locator('[data-upcoming="true"]').filter({ hasText: 'Fremtidig opgave' });
@@ -21,7 +21,7 @@ test.describe('notBefore date display', () => {
   test('task without notBefore has no start-date badge', async ({ page, apiHelper }) => {
     await apiHelper.createTask({ title: 'Almindelig opgave' });
 
-    await page.goto('/todo');
+    await page.goto('/');
 
     await expect(page.getByText('Almindelig opgave')).toBeVisible();
     await expect(page.locator('.text-purple-400')).not.toBeVisible();

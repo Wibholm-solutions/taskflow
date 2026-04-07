@@ -38,7 +38,7 @@ async function swipeRightToComplete(page: import('@playwright/test').Page, text:
 test.describe('Undo complete', () => {
   test('undo brings task back', async ({ page, apiHelper }) => {
     await apiHelper.createTask({ title: 'Undo mig' });
-    await page.goto('/todo');
+    await page.goto('/');
     await expect(page.getByText('Undo mig')).toBeVisible();
 
     await swipeRightToComplete(page, 'Undo mig');
@@ -55,7 +55,7 @@ test.describe('Undo complete', () => {
 
   test('task completes after delay expires', async ({ page, apiHelper }) => {
     await apiHelper.createTask({ title: 'Vent på mig' });
-    await page.goto('/todo');
+    await page.goto('/');
     await expect(page.getByText('Vent på mig')).toBeVisible();
 
     await swipeRightToComplete(page, 'Vent på mig');
