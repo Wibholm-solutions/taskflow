@@ -1,44 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
-import { drizzle } from 'drizzle-orm/better-sqlite3';
-import * as schema from '../src/db/schema';
 import { TaskService } from '../src/services/taskService';
 import { SubtasksConfirmationRequiredError } from '../src/services/completionOrchestrator';
-
-function setupTestDb() {
-  const sqlite = new Database(':memory:');
-  sqlite.exec(`
-    CREATE TABLE tasks (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL DEFAULT 'default',
-      title TEXT NOT NULL,
-      description TEXT,
-      deadline TEXT,
-      priority TEXT NOT NULL DEFAULT 'default',
-      is_completed INTEGER NOT NULL DEFAULT 0,
-      completed_at TEXT,
-      not_before TEXT,
-      recurrence_group_id TEXT,
-      recurrence_rule TEXT,
-      sort_order INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE subtasks (
-      id TEXT PRIMARY KEY,
-      task_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      is_completed INTEGER NOT NULL DEFAULT 0,
-      completed_at TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
-    )
-  `);
-  const db = drizzle(sqlite, { schema });
-  return { db, sqlite };
-}
+import { setupTestDb } from './helpers/setupTestDb';
 
 describe('TaskService', () => {
   let sqlite: Database.Database;

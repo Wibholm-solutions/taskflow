@@ -3,44 +3,11 @@ import { Hono } from 'hono';
 import { createTaskRoutes } from '../src/routes/tasks';
 import { authMiddleware } from '../src/middleware/auth';
 import Database from 'better-sqlite3';
-import { drizzle } from 'drizzle-orm/better-sqlite3';
-import * as schema from '../src/db/schema';
 import { TaskService } from '../src/services/taskService';
-
-const CREATE_TABLE_SQL = `
-  CREATE TABLE tasks (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL DEFAULT 'default',
-    title TEXT NOT NULL,
-    description TEXT,
-    deadline TEXT,
-    priority TEXT NOT NULL DEFAULT 'default',
-    is_completed INTEGER NOT NULL DEFAULT 0,
-    completed_at TEXT,
-    not_before TEXT,
-    recurrence_group_id TEXT,
-    recurrence_rule TEXT,
-    sort_order INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-  );
-
-  CREATE TABLE subtasks (
-    id TEXT PRIMARY KEY,
-    task_id TEXT NOT NULL,
-    title TEXT NOT NULL,
-    is_completed INTEGER NOT NULL DEFAULT 0,
-    completed_at TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
-  )
-`;
+import { setupTestDb } from './helpers/setupTestDb';
 
 function setupApp() {
-  const sqlite = new Database(':memory:');
-  sqlite.exec(CREATE_TABLE_SQL);
-  const db = drizzle(sqlite, { schema });
+  const { db, sqlite } = setupTestDb();
   const service = new TaskService(db);
   const app = new Hono().basePath('/todo/api');
   app.use('/*', authMiddleware);
