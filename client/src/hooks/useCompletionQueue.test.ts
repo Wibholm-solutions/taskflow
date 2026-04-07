@@ -277,7 +277,7 @@ describe('useCompletionQueue', () => {
     window.dispatchEvent(new Event('beforeunload'));
 
     expect(sendBeacon).toHaveBeenCalledWith(
-      '/todo/api/tasks/task-1/complete',
+      '/api/tasks/task-1/complete',
       undefined,
     );
 

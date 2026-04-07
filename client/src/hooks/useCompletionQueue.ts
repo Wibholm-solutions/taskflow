@@ -85,7 +85,8 @@ export function useCompletionQueue(deps: CompletionQueueDeps): CompletionQueueRe
         const body = entry.completeRemainingSubtasks
           ? JSON.stringify({ completeRemainingSubtasks: true })
           : undefined;
-        const url = `/todo/api/tasks/${entry.taskId}/complete`;
+        const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+        const url = `${base}/api/tasks/${entry.taskId}/complete`;
         if (navigator.sendBeacon) {
           navigator.sendBeacon(url, body ? new Blob([body], { type: 'application/json' }) : undefined);
         } else {

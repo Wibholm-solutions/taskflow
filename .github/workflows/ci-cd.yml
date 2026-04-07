@@ -8,7 +8,7 @@ on:
 
 jobs:
   unit_coverage:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -34,7 +34,7 @@ jobs:
 
   build:
     needs: unit_coverage
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -52,7 +52,7 @@ jobs:
 
   e2e:
     needs: build
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -71,28 +71,7 @@ jobs:
       - name: Build app for E2E
         run: npm run build
 
-      - name: Kill stale processes on port 3000
-        run: lsof -ti:3000 | xargs -r kill -9 || true
-
       - name: Run end-to-end verification
         run: npm run test:e2e
         env:
           CI: true
-          DISPLAY: ":99"
-
-  deploy:
-    if: github.event_name == 'push'
-    needs: [unit_coverage, build, e2e]
-    runs-on: self-hosted
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build image
-        run: |
-          docker build \
-            -t taskflow:${{ github.sha }} \
-            -t taskflow:latest \
-            .
-
-      - name: Deploy
-        run: ~/scripts/deploy.sh taskflow

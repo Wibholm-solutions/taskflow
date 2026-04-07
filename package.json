@@ -1,7 +1,12 @@
 {
   "name": "taskflow",
   "version": "1.0.0",
-  "private": true,
+  "description": "Personal task management PWA with recurring tasks, subtasks, swipe gestures, and offline support",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Wibholm-solutions/taskflow"
+  },
   "type": "module",
   "scripts": {
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",

@@ -131,7 +131,13 @@ export default function App() {
       />
       <CompletionSnackbar pendingCompletions={pendingCompletions} onUndo={undoCompletion} />
       {error && <Toast message={error} onDismiss={clearError} />}
-      <FeedbackButton repo="saabendtsen/taskflow" apiUrl="https://wibholmsolutions.com/api/feedback" position="bottom-left" />
+      {import.meta.env.VITE_FEEDBACK_REPO && import.meta.env.VITE_FEEDBACK_API_URL && (
+        <FeedbackButton
+          repo={import.meta.env.VITE_FEEDBACK_REPO}
+          apiUrl={import.meta.env.VITE_FEEDBACK_API_URL}
+          position="bottom-left"
+        />
+      )}
     </div>
   );
 }

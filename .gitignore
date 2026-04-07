@@ -4,8 +4,20 @@ data/
 .env
 *.db
 *.db-journal
+*.db-shm
+*.db-wal
 test-results/
 playwright-report/
 blob-report/
 .worktrees/
 coverage/
+
+# AI assistant / tooling artifacts
+.agent/
+.claude/
+.playwright-mcp/
+CLAUDE.md
+
+# Internal planning artifacts
+docs/plans/
+docs/superpowers/
