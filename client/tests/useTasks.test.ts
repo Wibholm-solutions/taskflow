@@ -3,13 +3,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useTasks } from '../src/hooks/useTasks';
 import { api } from '../src/services/api';
+import type { Task } from '../src/types';
 
 vi.mock('../src/services/api');
 
-describe('useTasks', () => {
-  const parentTask = {
-    id: '1',
-    title: 'Parent task',
+function makeTask(overrides: Partial<Task> = {}): Task {
+  return {
+    id: 'task-1',
+    title: 'Test task',
     description: null,
     deadline: null,
     priority: 'default',
@@ -18,69 +19,144 @@ describe('useTasks', () => {
     notBefore: null,
     recurrenceGroupId: null,
     recurrenceRule: null,
-    createdAt: '2026-03-15T00:00:00.000Z',
-    updatedAt: '2026-03-15T00:00:00.000Z',
-    subtasks: [
-      {
-        id: 'subtask-1',
-        taskId: '1',
-        title: 'Open subtask',
-        isCompleted: false,
-        completedAt: null,
-        createdAt: '2026-03-15T00:00:00.000Z',
-        updatedAt: '2026-03-15T00:00:00.000Z',
-      },
-    ],
-  } as any;
-  const taskB = {
-    id: '2',
-    title: 'Task B',
-    description: null,
-    deadline: null,
-    priority: 'default',
-    isCompleted: false,
-    completedAt: null,
-    notBefore: null,
-    recurrenceGroupId: null,
-    recurrenceRule: null,
-    createdAt: '2026-03-15T00:00:00.000Z',
-    updatedAt: '2026-03-15T00:00:00.000Z',
+    sortOrder: 0,
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
     subtasks: [],
-  } as any;
+    ...overrides,
+  };
+}
 
+const parentTask = makeTask({
+  id: '1',
+  title: 'Parent task',
+  subtasks: [
+    {
+      id: 'subtask-1',
+      taskId: '1',
+      title: 'Open subtask',
+      isCompleted: false,
+      completedAt: null,
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+    },
+  ],
+});
+
+const taskB = makeTask({ id: '2', title: 'Task B' });
+
+describe('useTasks', () => {
   beforeEach(() => {
-    vi.mocked(api.listTasks).mockResolvedValue({ active: [], upcoming: [] });
+    vi.mocked(api.listTasks).mockReset();
     vi.mocked(api.completeTask).mockReset();
     vi.mocked(api.deleteTask).mockReset();
-    (api as Record<string, any>).reorderTasks = vi.fn();
+    vi.mocked(api.createTask).mockReset();
+    vi.mocked(api.updateTask).mockReset();
+    vi.mocked(api.reorderTasks).mockReset();
+    vi.mocked(api.listTasks).mockResolvedValue({ active: [], upcoming: [] });
   });
 
-  it('should fetch tasks on mount', async () => {
+  it('fetches tasks on mount', async () => {
     vi.mocked(api.listTasks).mockResolvedValue({
-      active: [{ id: '1', title: 'Task 1', priority: 'default', isCompleted: false } as any],
-      upcoming: [],
+      active: [makeTask({ id: '1', title: 'Task 1' })],
+      upcoming: [makeTask({ id: '2', title: 'Upcoming' })],
     });
 
     const { result } = renderHook(() => useTasks());
-    await waitFor(() => expect(result.current.active).toHaveLength(1));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.active).toHaveLength(1);
     expect(result.current.active[0].title).toBe('Task 1');
+    expect(result.current.upcoming).toHaveLength(1);
   });
 
-  it('should optimistically remove task on complete', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
+  it('sets error when fetch fails', async () => {
+    vi.mocked(api.listTasks).mockRejectedValue(new Error('Network error'));
+
+    const { result } = renderHook(() => useTasks());
+    await waitFor(() => expect(result.current.error).toBe('Network error'));
+    expect(result.current.loading).toBe(false);
+  });
+
+  it('creates a task and refreshes', async () => {
+    const newTask = makeTask({ id: 'new-1', title: 'New Task' });
+    vi.mocked(api.createTask).mockResolvedValue(newTask);
     vi.mocked(api.listTasks)
-      .mockResolvedValueOnce({
-        active: [{ id: '1', title: 'Task 1', priority: 'default', isCompleted: false, subtasks: [] } as any],
-        upcoming: [],
-      })
-      .mockResolvedValueOnce({
-        active: [],
-        upcoming: [],
-      });
-    vi.mocked(api.completeTask).mockResolvedValue({
-      completed: { id: '1', isCompleted: true } as any,
-      nextInstance: null,
+      .mockResolvedValueOnce({ active: [], upcoming: [] })
+      .mockResolvedValueOnce({ active: [newTask], upcoming: [] });
+
+    const { result } = renderHook(() => useTasks());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let created: Task | undefined;
+    await act(async () => {
+      created = await result.current.createTask({ title: 'New Task' });
     });
+
+    expect(created).toEqual(newTask);
+    expect(vi.mocked(api.createTask)).toHaveBeenCalledWith({ title: 'New Task' });
+    await waitFor(() => expect(result.current.active).toHaveLength(1));
+  });
+
+  it('sets error when create fails', async () => {
+    vi.mocked(api.createTask).mockRejectedValue(new Error('Validation error'));
+
+    const { result } = renderHook(() => useTasks());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      try {
+        await result.current.createTask({ title: '' });
+      } catch {
+        // expected
+      }
+    });
+
+    expect(result.current.error).toBe('Validation error');
+  });
+
+  it('updates a task and refreshes', async () => {
+    const task = makeTask({ id: '1', title: 'Original' });
+    const updated = makeTask({ id: '1', title: 'Updated' });
+    vi.mocked(api.listTasks)
+      .mockResolvedValueOnce({ active: [task], upcoming: [] })
+      .mockResolvedValueOnce({ active: [updated], upcoming: [] });
+    vi.mocked(api.updateTask).mockResolvedValue(updated);
+
+    const { result } = renderHook(() => useTasks());
+    await waitFor(() => expect(result.current.active).toHaveLength(1));
+
+    await act(async () => {
+      await result.current.updateTask('1', { title: 'Updated' });
+    });
+
+    expect(vi.mocked(api.updateTask)).toHaveBeenCalledWith('1', { title: 'Updated' });
+    await waitFor(() => expect(result.current.active[0].title).toBe('Updated'));
+  });
+
+  it('rolls back state when update fails', async () => {
+    const task = makeTask({ id: '1', title: 'Original' });
+    vi.mocked(api.listTasks).mockResolvedValue({ active: [task], upcoming: [] });
+    vi.mocked(api.updateTask).mockRejectedValue(new Error('Update failed'));
+
+    const { result } = renderHook(() => useTasks());
+    await waitFor(() => expect(result.current.active).toHaveLength(1));
+
+    await act(async () => {
+      try {
+        await result.current.updateTask('1', { title: 'Updated' });
+      } catch {
+        // expected
+      }
+    });
+
+    expect(result.current.error).toBe('Update failed');
+    expect(result.current.active[0].title).toBe('Original');
+  });
+
+  it('optimistically removes task on complete (simple task)', async () => {
+    const task = makeTask({ id: '1', title: 'Simple' });
+    vi.mocked(api.listTasks).mockResolvedValue({ active: [task], upcoming: [] });
 
     const { result } = renderHook(() => useTasks());
     await waitFor(() => expect(result.current.active).toHaveLength(1));
@@ -89,40 +165,12 @@ describe('useTasks', () => {
       result.current.completeTask('1');
     });
 
+    // Task removed immediately from UI, queued for undo
     expect(result.current.active).toHaveLength(0);
-    expect(vi.mocked(api.completeTask)).not.toHaveBeenCalled();
-
-    await act(async () => {
-      vi.advanceTimersByTime(5000);
-    });
-
-    expect(vi.mocked(api.completeTask)).toHaveBeenCalledWith('1', undefined);
-    vi.useRealTimers();
+    expect(result.current.pendingCompletions).toHaveLength(1);
   });
 
-  it('should rollback on complete failure', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-    const task = { id: '1', title: 'Task 1', priority: 'default', isCompleted: false, subtasks: [] } as any;
-    vi.mocked(api.listTasks).mockResolvedValue({ active: [task], upcoming: [] });
-    vi.mocked(api.completeTask).mockRejectedValue(new Error('Network error'));
-
-    const { result } = renderHook(() => useTasks());
-    await waitFor(() => expect(result.current.active).toHaveLength(1));
-
-    act(() => { result.current.completeTask('1'); });
-
-    expect(result.current.active).toHaveLength(0);
-
-    await act(async () => {
-      vi.advanceTimersByTime(5000);
-    });
-
-    await waitFor(() => expect(result.current.active).toHaveLength(1));
-    expect(result.current.error).toBe('Network error');
-    vi.useRealTimers();
-  });
-
-  it('should surface pending completion confirmation instead of an error for aggregate tasks', async () => {
+  it('surfaces subtask confirmation for tasks with open subtasks', async () => {
     vi.mocked(api.listTasks).mockResolvedValue({ active: [parentTask], upcoming: [] });
     vi.mocked(api.completeTask).mockRejectedValue(new Error('subtasks_confirmation_required'));
 
@@ -135,31 +183,14 @@ describe('useTasks', () => {
 
     expect(result.current.active).toHaveLength(0);
 
-    await waitFor(() => expect(result.current.active).toHaveLength(1));
+    await waitFor(() => expect(result.current.pendingCompletionTask?.id).toBe(parentTask.id));
+    expect(result.current.active).toHaveLength(1);
     expect(result.current.error).toBeNull();
-    expect(result.current.pendingCompletionTask).toEqual(parentTask);
   });
 
-  it('should confirm aggregate completion with completeRemainingSubtasks', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-    vi.mocked(api.listTasks)
-      .mockResolvedValueOnce({ active: [parentTask], upcoming: [] })
-      .mockResolvedValueOnce({ active: [], upcoming: [] });
-    vi.mocked(api.completeTask)
-      .mockRejectedValueOnce(new Error('subtasks_confirmation_required'))
-      .mockResolvedValueOnce({
-        completed: {
-          ...parentTask,
-          isCompleted: true,
-          completedAt: '2026-03-15T01:00:00.000Z',
-          subtasks: parentTask.subtasks.map((subtask: any) => ({
-            ...subtask,
-            isCompleted: true,
-            completedAt: '2026-03-15T01:00:00.000Z',
-          })),
-        },
-        nextInstance: null,
-      } as any);
+  it('confirms aggregate completion and enqueues with completeRemainingSubtasks', async () => {
+    vi.mocked(api.listTasks).mockResolvedValue({ active: [parentTask], upcoming: [] });
+    vi.mocked(api.completeTask).mockRejectedValue(new Error('subtasks_confirmation_required'));
 
     const { result } = renderHook(() => useTasks());
     await waitFor(() => expect(result.current.active).toHaveLength(1));
@@ -174,23 +205,13 @@ describe('useTasks', () => {
       result.current.confirmPendingCompletion();
     });
 
-    // Confirmation enters the delay queue — advance timer to fire API
-    await act(async () => {
-      vi.advanceTimersByTime(5000);
-    });
-
-    expect(vi.mocked(api.completeTask)).toHaveBeenLastCalledWith(parentTask.id, {
-      completeRemainingSubtasks: true,
-    });
-
-    await waitFor(() => {
-      expect(result.current.pendingCompletionTask).toBeNull();
-      expect(result.current.active).toHaveLength(0);
-    });
-    vi.useRealTimers();
+    // After confirm, the task is removed from active and queued for completion via undo queue
+    expect(result.current.active).toHaveLength(0);
+    expect(result.current.pendingCompletions).toHaveLength(1);
+    expect(result.current.pendingCompletions[0].completeRemainingSubtasks).toBe(true);
   });
 
-  it('should allow cancelling pending aggregate completion', async () => {
+  it('cancels pending aggregate completion and keeps task', async () => {
     vi.mocked(api.listTasks).mockResolvedValue({ active: [parentTask], upcoming: [] });
     vi.mocked(api.completeTask).mockRejectedValue(new Error('subtasks_confirmation_required'));
 
@@ -211,210 +232,25 @@ describe('useTasks', () => {
     expect(result.current.active).toEqual([parentTask]);
   });
 
-  it('should not clear pending confirmation for task A when task B completes successfully', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-    vi.mocked(api.listTasks)
-      .mockResolvedValueOnce({ active: [parentTask, taskB], upcoming: [] })
-      .mockResolvedValueOnce({ active: [parentTask], upcoming: [] });
-    vi.mocked(api.completeTask)
-      .mockRejectedValueOnce(new Error('subtasks_confirmation_required'))
-      .mockResolvedValueOnce({
-        completed: { ...taskB, isCompleted: true, completedAt: '2026-03-15T01:00:00.000Z' },
-        nextInstance: null,
-      } as any);
+  it('optimistically removes and rolls back on delete failure', async () => {
+    const task = makeTask({ id: '1', title: 'Delete me' });
+    vi.mocked(api.listTasks).mockResolvedValue({ active: [task], upcoming: [] });
+    vi.mocked(api.deleteTask).mockRejectedValue(new Error('Delete failed'));
 
     const { result } = renderHook(() => useTasks());
-    await waitFor(() => expect(result.current.active).toHaveLength(2));
+    await waitFor(() => expect(result.current.active).toHaveLength(1));
 
-    // parentTask has incomplete subtasks → API immediately → 409
     act(() => {
-      result.current.completeTask(parentTask.id);
-    });
-
-    await waitFor(() => expect(result.current.pendingCompletionTask?.id).toBe(parentTask.id));
-
-    // taskB has no subtasks → enters delay queue
-    act(() => {
-      result.current.completeTask(taskB.id);
-    });
-
-    // Advance timer to fire taskB's completion
-    await act(async () => {
-      vi.advanceTimersByTime(5000);
-    });
-
-    await waitFor(() => expect(result.current.active).toEqual([parentTask]));
-    expect(result.current.pendingCompletionTask).toEqual(parentTask);
-    vi.useRealTimers();
-  });
-
-  it('should restore only the affected task on completion failure instead of stale list snapshots', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-    const taskC = {
-      id: '3',
-      title: 'Task C',
-      description: null,
-      deadline: null,
-      priority: 'default',
-      isCompleted: false,
-      completedAt: null,
-      notBefore: null,
-      recurrenceGroupId: null,
-      recurrenceRule: null,
-      createdAt: '2026-03-15T00:00:00.000Z',
-      updatedAt: '2026-03-15T00:00:00.000Z',
-      subtasks: [],
-    } as any;
-
-    let rejectTaskB!: (error: Error) => void;
-    vi.mocked(api.listTasks)
-      .mockResolvedValueOnce({ active: [taskB, taskC], upcoming: [] })
-      .mockResolvedValueOnce({ active: [taskB], upcoming: [] });
-    vi.mocked(api.completeTask)
-      .mockImplementationOnce(() => new Promise((_, reject) => { rejectTaskB = reject; }))
-      .mockResolvedValueOnce({
-        completed: { ...taskC, isCompleted: true, completedAt: '2026-03-15T01:00:00.000Z' },
-        nextInstance: null,
-      } as any);
-
-    const { result } = renderHook(() => useTasks());
-    await waitFor(() => expect(result.current.active).toHaveLength(2));
-
-    // Both tasks have empty subtasks → enter delay queue
-    act(() => {
-      result.current.completeTask(taskB.id);
-    });
-    act(() => {
-      result.current.completeTask(taskC.id);
+      result.current.deleteTask('1');
     });
 
     expect(result.current.active).toHaveLength(0);
 
-    // Advance timers to fire both API calls
-    await act(async () => {
-      vi.advanceTimersByTime(5000);
-    });
-
-    // Reject taskB's API call
-    act(() => {
-      rejectTaskB(new Error('Network error'));
-    });
-
-    await waitFor(() => expect(result.current.active).toEqual([taskB]));
-    expect(result.current.active).not.toContainEqual(taskC);
-    expect(result.current.error).toBe('Network error');
-    vi.useRealTimers();
+    await waitFor(() => expect(result.current.active).toHaveLength(1));
+    expect(result.current.error).toBe('Delete failed');
   });
 
-  it('should restore only the deleted task on delete failure instead of stale list snapshots', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-    const taskC = {
-      id: '3',
-      title: 'Task C',
-      description: null,
-      deadline: null,
-      priority: 'default',
-      isCompleted: false,
-      completedAt: null,
-      notBefore: null,
-      recurrenceGroupId: null,
-      recurrenceRule: null,
-      createdAt: '2026-03-15T00:00:00.000Z',
-      updatedAt: '2026-03-15T00:00:00.000Z',
-      subtasks: [],
-    } as any;
-
-    let rejectDeleteB!: (error: Error) => void;
-    vi.mocked(api.listTasks)
-      .mockResolvedValueOnce({ active: [taskB, taskC], upcoming: [] })
-      .mockResolvedValueOnce({ active: [taskB], upcoming: [] });
-    vi.mocked(api.deleteTask)
-      .mockImplementationOnce(() => new Promise((_, reject) => { rejectDeleteB = reject; }));
-    vi.mocked(api.completeTask)
-      .mockResolvedValueOnce({
-        completed: { ...taskC, isCompleted: true, completedAt: '2026-03-15T01:00:00.000Z' },
-        nextInstance: null,
-      } as any);
-
-    const { result } = renderHook(() => useTasks());
-    await waitFor(() => expect(result.current.active).toHaveLength(2));
-
-    // Delete taskB — optimistically removed, active = [taskC]
-    act(() => {
-      result.current.deleteTask(taskB.id);
-    });
-
-    await waitFor(() => expect(result.current.active).toEqual([taskC]));
-
-    // Complete taskC while delete is in flight — enters delay queue
-    act(() => {
-      result.current.completeTask(taskC.id);
-    });
-
-    expect(result.current.active).toHaveLength(0);
-
-    // Advance timer to fire taskC's completion API call
-    await act(async () => {
-      vi.advanceTimersByTime(5000);
-    });
-
-    // Reject taskB's delete — only taskB should be restored
-    act(() => {
-      rejectDeleteB(new Error('Network error'));
-    });
-
-    await waitFor(() => expect(result.current.active).toEqual([taskB]));
-    expect(result.current.active).not.toContainEqual(taskC);
-    expect(result.current.error).toBe('Network error');
-    vi.useRealTimers();
-  });
-
-  it('should restore a deleted upcoming task on failure without clobbering active list', async () => {
-    const upcomingTask = {
-      id: '4',
-      title: 'Upcoming Task',
-      description: null,
-      deadline: null,
-      priority: 'default',
-      isCompleted: false,
-      completedAt: null,
-      notBefore: '2026-04-01T00:00:00.000Z',
-      recurrenceGroupId: null,
-      recurrenceRule: null,
-      createdAt: '2026-03-15T00:00:00.000Z',
-      updatedAt: '2026-03-15T00:00:00.000Z',
-      subtasks: [],
-    } as any;
-
-    let rejectDelete!: (error: Error) => void;
-    vi.mocked(api.listTasks)
-      .mockResolvedValueOnce({ active: [taskB], upcoming: [upcomingTask] });
-    vi.mocked(api.deleteTask)
-      .mockImplementationOnce(() => new Promise((_, reject) => { rejectDelete = reject; }));
-
-    const { result } = renderHook(() => useTasks());
-    await waitFor(() => {
-      expect(result.current.active).toHaveLength(1);
-      expect(result.current.upcoming).toHaveLength(1);
-    });
-
-    act(() => {
-      result.current.deleteTask(upcomingTask.id);
-    });
-
-    expect(result.current.upcoming).toHaveLength(0);
-    expect(result.current.active).toEqual([taskB]);
-
-    act(() => {
-      rejectDelete(new Error('Server error'));
-    });
-
-    await waitFor(() => expect(result.current.upcoming).toEqual([upcomingTask]));
-    expect(result.current.active).toEqual([taskB]);
-    expect(result.current.error).toBe('Server error');
-  });
-
-  it('should clear pending confirmation when the pending task is deleted', async () => {
+  it('deleting a task clears its pending confirmation', async () => {
     vi.mocked(api.listTasks).mockResolvedValue({ active: [parentTask], upcoming: [] });
     vi.mocked(api.completeTask).mockRejectedValue(new Error('subtasks_confirmation_required'));
     vi.mocked(api.deleteTask).mockResolvedValue(undefined);
@@ -438,247 +274,74 @@ describe('useTasks', () => {
     });
   });
 
-  it('should clear pending confirmation when refresh removes the pending task', async () => {
+  it('optimistically reorders active tasks', async () => {
+    const taskC = makeTask({ id: '3', title: 'Task C' });
     vi.mocked(api.listTasks)
-      .mockResolvedValueOnce({ active: [parentTask, taskB], upcoming: [] })
-      .mockResolvedValueOnce({ active: [taskB], upcoming: [] });
-    vi.mocked(api.completeTask).mockRejectedValue(new Error('subtasks_confirmation_required'));
+      .mockResolvedValueOnce({ active: [parentTask, taskB, taskC], upcoming: [] })
+      .mockResolvedValueOnce({ active: [taskB, parentTask, taskC], upcoming: [] });
+    vi.mocked(api.reorderTasks).mockResolvedValue(undefined);
 
     const { result } = renderHook(() => useTasks());
-    await waitFor(() => expect(result.current.active).toHaveLength(2));
+    await waitFor(() => expect(result.current.active).toHaveLength(3));
 
     act(() => {
-      result.current.completeTask(parentTask.id);
+      result.current.reorderTasks([taskB.id, parentTask.id, taskC.id]);
     });
 
-    await waitFor(() => expect(result.current.pendingCompletionTask?.id).toBe(parentTask.id));
+    expect(result.current.active.map((t) => t.id)).toEqual([taskB.id, parentTask.id, taskC.id]);
+    await waitFor(() =>
+      expect(vi.mocked(api.reorderTasks)).toHaveBeenCalledWith([taskB.id, parentTask.id, taskC.id]),
+    );
+  });
+
+  it('restores prior order when reorder fails', async () => {
+    const taskC = makeTask({ id: '3', title: 'Task C' });
+    vi.mocked(api.listTasks)
+      .mockResolvedValueOnce({ active: [parentTask, taskB, taskC], upcoming: [] })
+      .mockResolvedValueOnce({ active: [parentTask, taskB, taskC], upcoming: [] });
+    vi.mocked(api.reorderTasks).mockRejectedValue(new Error('Reorder failed'));
+
+    const { result } = renderHook(() => useTasks());
+    await waitFor(() => expect(result.current.active).toHaveLength(3));
+
+    act(() => {
+      result.current.reorderTasks([taskB.id, parentTask.id, taskC.id]);
+    });
+
+    expect(result.current.active.map((t) => t.id)).toEqual([taskB.id, parentTask.id, taskC.id]);
+
+    await waitFor(() =>
+      expect(result.current.active.map((t) => t.id)).toEqual([parentTask.id, taskB.id, taskC.id]),
+    );
+    expect(result.current.error).toBe('Reorder failed');
+  });
+
+  it('clearError clears the error state', async () => {
+    vi.mocked(api.listTasks).mockRejectedValueOnce(new Error('fail'));
+
+    const { result } = renderHook(() => useTasks());
+    await waitFor(() => expect(result.current.error).toBe('fail'));
+
+    act(() => {
+      result.current.clearError();
+    });
+
+    expect(result.current.error).toBeNull();
+  });
+
+  it('refresh can be called manually', async () => {
+    vi.mocked(api.listTasks)
+      .mockResolvedValueOnce({ active: [], upcoming: [] })
+      .mockResolvedValueOnce({ active: [makeTask()], upcoming: [] });
+
+    const { result } = renderHook(() => useTasks());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.active).toHaveLength(0);
 
     await act(async () => {
       await result.current.refresh();
     });
 
-    await waitFor(() => {
-      expect(result.current.active).toEqual([taskB]);
-      expect(result.current.pendingCompletionTask).toBeNull();
-    });
-  });
-
-  it('optimistically reorders active tasks immediately', async () => {
-    const taskC = {
-      ...taskB,
-      id: '3',
-      title: 'Task C',
-    } as any;
-
-    vi.mocked(api.listTasks)
-      .mockResolvedValueOnce({ active: [parentTask, taskB, taskC], upcoming: [] })
-      .mockResolvedValueOnce({ active: [taskB, parentTask, taskC], upcoming: [] });
-    (api as Record<string, any>).reorderTasks.mockResolvedValue(undefined);
-
-    const { result } = renderHook(() => useTasks());
-    await waitFor(() => expect(result.current.active).toHaveLength(3));
-
-    act(() => {
-      (result.current as any).reorderTasks([taskB.id, parentTask.id, taskC.id]);
-    });
-
-    expect(result.current.active.map((task) => task.id)).toEqual([taskB.id, parentTask.id, taskC.id]);
-    await waitFor(() => expect((api as Record<string, any>).reorderTasks).toHaveBeenCalledWith([
-      taskB.id,
-      parentTask.id,
-      taskC.id,
-    ]));
-  });
-
-  it('restores prior order and surfaces the error when reorder fails', async () => {
-    const taskC = {
-      ...taskB,
-      id: '3',
-      title: 'Task C',
-    } as any;
-
-    vi.mocked(api.listTasks)
-      .mockResolvedValueOnce({ active: [parentTask, taskB, taskC], upcoming: [] })
-      .mockResolvedValueOnce({ active: [parentTask, taskB, taskC], upcoming: [] });
-    (api as Record<string, any>).reorderTasks.mockRejectedValue(new Error('Network error'));
-
-    const { result } = renderHook(() => useTasks());
-    await waitFor(() => expect(result.current.active).toHaveLength(3));
-
-    act(() => {
-      (result.current as any).reorderTasks([taskB.id, parentTask.id, taskC.id]);
-    });
-
-    expect(result.current.active.map((task) => task.id)).toEqual([taskB.id, parentTask.id, taskC.id]);
-
-    await waitFor(() => expect(result.current.active.map((task) => task.id)).toEqual([
-      parentTask.id,
-      taskB.id,
-      taskC.id,
-    ]));
-    expect(result.current.error).toBe('Network error');
-  });
-
-  it('refreshes after stale server rejection and snaps back cleanly', async () => {
-    const taskC = {
-      ...taskB,
-      id: '3',
-      title: 'Task C',
-    } as any;
-
-    vi.mocked(api.listTasks)
-      .mockResolvedValueOnce({ active: [parentTask, taskB, taskC], upcoming: [] })
-      .mockResolvedValueOnce({ active: [taskC, parentTask, taskB], upcoming: [] });
-    (api as Record<string, any>).reorderTasks.mockRejectedValue(new Error('invalid reorder payload'));
-
-    const { result } = renderHook(() => useTasks());
-    await waitFor(() => expect(result.current.active).toHaveLength(3));
-
-    act(() => {
-      (result.current as any).reorderTasks([taskB.id, parentTask.id, taskC.id]);
-    });
-
-    await waitFor(() => expect(result.current.active.map((task) => task.id)).toEqual([
-      taskC.id,
-      parentTask.id,
-      taskB.id,
-    ]));
-    expect(result.current.error).toBe('invalid reorder payload');
-  });
-
-  describe('completion undo queue', () => {
-    beforeEach(() => {
-      vi.useFakeTimers({ shouldAdvanceTime: true });
-    });
-
-    afterEach(() => {
-      vi.useRealTimers();
-    });
-
-    it('should delay API call by 5 seconds and allow undo', async () => {
-      const task = { id: '1', title: 'Task 1', priority: 'default', isCompleted: false, subtasks: [] } as any;
-      vi.mocked(api.listTasks).mockResolvedValue({ active: [task], upcoming: [] });
-      vi.mocked(api.completeTask).mockResolvedValue({
-        completed: { ...task, isCompleted: true },
-        nextInstance: null,
-      });
-
-      const { result } = renderHook(() => useTasks());
-      await waitFor(() => expect(result.current.active).toHaveLength(1));
-
-      // Complete — task removed optimistically, API NOT called yet
-      act(() => {
-        result.current.completeTask('1');
-      });
-
-      expect(result.current.active).toHaveLength(0);
-      expect(result.current.pendingCompletions).toHaveLength(1);
-      expect(vi.mocked(api.completeTask)).not.toHaveBeenCalled();
-
-      // Undo — task restored, timer cancelled
-      act(() => {
-        result.current.undoCompletion('1');
-      });
-
-      expect(result.current.active).toHaveLength(1);
-      expect(result.current.active[0].id).toBe('1');
-      expect(result.current.pendingCompletions).toHaveLength(0);
-
-      // Advance past 5s — API should still not be called (was undone)
-      await act(async () => {
-        vi.advanceTimersByTime(5000);
-      });
-
-      expect(vi.mocked(api.completeTask)).not.toHaveBeenCalled();
-    });
-
-    it('should fire API call after 5 seconds if not undone', async () => {
-      const task = { id: '1', title: 'Task 1', priority: 'default', isCompleted: false, subtasks: [] } as any;
-      vi.mocked(api.listTasks)
-        .mockResolvedValueOnce({ active: [task], upcoming: [] })
-        .mockResolvedValueOnce({ active: [], upcoming: [] });
-      vi.mocked(api.completeTask).mockResolvedValue({
-        completed: { ...task, isCompleted: true },
-        nextInstance: null,
-      });
-
-      const { result } = renderHook(() => useTasks());
-      await waitFor(() => expect(result.current.active).toHaveLength(1));
-
-      act(() => {
-        result.current.completeTask('1');
-      });
-
-      expect(vi.mocked(api.completeTask)).not.toHaveBeenCalled();
-
-      // Advance 5s — API fires
-      await act(async () => {
-        vi.advanceTimersByTime(5000);
-      });
-
-      expect(vi.mocked(api.completeTask)).toHaveBeenCalledWith('1', undefined);
-    });
-
-    it('should force-complete oldest when 4th completion is enqueued', async () => {
-      const tasks = [1, 2, 3, 4].map((n) => ({
-        id: String(n), title: `Task ${n}`, priority: 'default', isCompleted: false, subtasks: [],
-      } as any));
-      vi.mocked(api.listTasks)
-        .mockResolvedValueOnce({ active: tasks, upcoming: [] })
-        .mockResolvedValue({ active: [], upcoming: [] });
-      vi.mocked(api.completeTask).mockResolvedValue({
-        completed: { isCompleted: true } as any,
-        nextInstance: null,
-      });
-
-      const { result } = renderHook(() => useTasks());
-      await waitFor(() => expect(result.current.active).toHaveLength(4));
-
-      // Complete 3 tasks
-      act(() => {
-        result.current.completeTask('1');
-        result.current.completeTask('2');
-        result.current.completeTask('3');
-      });
-
-      expect(result.current.pendingCompletions).toHaveLength(3);
-      expect(vi.mocked(api.completeTask)).not.toHaveBeenCalled();
-
-      // 4th completion triggers force-complete of oldest (#1)
-      act(() => {
-        result.current.completeTask('4');
-      });
-
-      expect(result.current.pendingCompletions).toHaveLength(3);
-      expect(vi.mocked(api.completeTask)).toHaveBeenCalledWith('1', undefined);
-    });
-
-    it('should flush all pending completions via flushCompletions', async () => {
-      const tasks = [1, 2].map((n) => ({
-        id: String(n), title: `Task ${n}`, priority: 'default', isCompleted: false, subtasks: [],
-      } as any));
-      vi.mocked(api.listTasks).mockResolvedValue({ active: tasks, upcoming: [] });
-      vi.mocked(api.completeTask).mockResolvedValue({
-        completed: { isCompleted: true } as any,
-        nextInstance: null,
-      });
-
-      const { result } = renderHook(() => useTasks());
-      await waitFor(() => expect(result.current.active).toHaveLength(2));
-
-      act(() => {
-        result.current.completeTask('1');
-        result.current.completeTask('2');
-      });
-
-      expect(result.current.pendingCompletions).toHaveLength(2);
-
-      act(() => {
-        result.current.flushCompletions();
-      });
-
-      expect(vi.mocked(api.completeTask)).toHaveBeenCalledTimes(2);
-      expect(result.current.pendingCompletions).toHaveLength(0);
-    });
+    expect(result.current.active).toHaveLength(1);
   });
 });

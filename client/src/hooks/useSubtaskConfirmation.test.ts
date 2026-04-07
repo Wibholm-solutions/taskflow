@@ -40,7 +40,7 @@ describe('useSubtaskConfirmation', () => {
     expect(result.current.pendingCompletionTask).toEqual(expect.objectContaining({ id: 'task-1' }));
   });
 
-  it('confirmPendingCompletion calls onConfirm with task id and clears state', () => {
+  it('confirmPendingCompletion calls onConfirm with task id', () => {
     const deps = { onConfirm: vi.fn(), taskExistsInState: vi.fn().mockReturnValue(true) };
     const { result } = renderHook(() => useSubtaskConfirmation(deps));
 
