@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Task, PendingCompletion, CompleteTaskOptions } from '../types';
 
 const UNDO_DELAY_MS = 5000;
@@ -20,6 +20,8 @@ export interface CompletionQueueResult {
 
 export function useCompletionQueue(deps: CompletionQueueDeps): CompletionQueueResult {
   const [pendingCompletions, setPendingCompletions] = useState<PendingCompletion[]>([]);
+  const pendingRef = useRef(pendingCompletions);
+  pendingRef.current = pendingCompletions;
 
   const enqueue = useCallback((entry: Omit<PendingCompletion, 'timerId'>) => {
     const fullEntry: PendingCompletion = {
@@ -98,7 +100,7 @@ export function useCompletionQueue(deps: CompletionQueueDeps): CompletionQueueRe
   // Cleanup timers on unmount
   useEffect(() => {
     return () => {
-      pendingCompletions.forEach((entry) => clearTimeout(entry.timerId));
+      pendingRef.current.forEach((entry) => clearTimeout(entry.timerId));
     };
   }, []);
 
