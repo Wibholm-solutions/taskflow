@@ -1,9 +1,0 @@
-{
-  "planPath": "docs/plans/2026-03-16-taskflow-14.md",
-  "tasks": [
-    {"id": 1, "subject": "Task 1: Write failing regression test for update→complete recurrence", "status": "pending"},
-    {"id": 2, "subject": "Task 2: Fix update() to assign recurrenceGroupId when adding a recurrence rule", "status": "pending", "blockedBy": [1]},
-    {"id": 3, "subject": "Task 3: Run full test suite and commit", "status": "pending", "blockedBy": [2]}
-  ],
-  "lastUpdated": "2026-03-16T00:00:00.000Z"
-}

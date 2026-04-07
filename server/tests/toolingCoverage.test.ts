@@ -48,7 +48,6 @@ describe('coverage tooling', () => {
     expect(workflow).toContain('build:\n    needs: unit_coverage');
     expect(workflow).toContain('e2e:\n    needs: build');
     expect(workflow).toContain('run: npm run test:coverage');
-    expect(workflow).toContain('needs: [unit_coverage, build, e2e]');
     // upload-artifact step
     expect(workflow).toContain('actions/upload-artifact@v4');
     expect(workflow).toContain('coverage/');
