@@ -39,14 +39,14 @@ describe('TaskItem', () => {
     const today = new Date().toISOString().split('T')[0];
     const task = { ...baseTask, deadline: today };
     render(<TaskItem task={task} onComplete={() => {}} onDelete={() => {}} onTap={() => {}} />);
-    expect(screen.getByText('i dag')).toBeTruthy();
+    expect(screen.getByText('today')).toBeTruthy();
   });
 
   it('shows deadline text for tomorrow', () => {
     const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
     const task = { ...baseTask, deadline: tomorrow };
     render(<TaskItem task={task} onComplete={() => {}} onDelete={() => {}} onTap={() => {}} />);
-    expect(screen.getByText('i morgen')).toBeTruthy();
+    expect(screen.getByText('tomorrow')).toBeTruthy();
   });
 
   it('applies upcoming styling', () => {
@@ -140,7 +140,7 @@ describe('TaskItem', () => {
     const { container } = render(
       <TaskItem task={task} onComplete={() => {}} onDelete={() => {}} onTap={() => {}} upcoming />
     );
-    expect(screen.getByText(/15\. dec\./)).toBeTruthy();
+    expect(screen.getByText(/Dec 15/)).toBeTruthy();
     expect(container.querySelector('.text-purple-400')).toBeTruthy();
   });
 
@@ -165,8 +165,8 @@ describe('TaskItem', () => {
     const futureDate = '2026-12-15';
     const task = { ...baseTask, deadline: today, notBefore: futureDate };
     render(<TaskItem task={task} onComplete={() => {}} onDelete={() => {}} onTap={() => {}} />);
-    expect(screen.getByText('i dag')).toBeTruthy();
-    expect(screen.getByText(/15\. dec\./)).toBeTruthy();
+    expect(screen.getByText('today')).toBeTruthy();
+    expect(screen.getByText(/Dec 15/)).toBeTruthy();
   });
 
   it('cancels long-press when finger moves on drag handle', () => {

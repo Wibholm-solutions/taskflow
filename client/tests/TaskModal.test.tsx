@@ -24,32 +24,32 @@ const baseTask: Task = {
 describe('TaskModal', () => {
   it('renders with title field', () => {
     render(<TaskModal isOpen={true} onClose={() => {}} onSave={() => {}} />);
-    const input = screen.getByPlaceholderText('Hvad skal du?');
+    const input = screen.getByPlaceholderText('What needs to be done?');
     expect(input).toBeTruthy();
   });
 
   it('calls onSave with title on submit', () => {
     const onSave = vi.fn();
     render(<TaskModal isOpen={true} onClose={() => {}} onSave={onSave} />);
-    fireEvent.change(screen.getByPlaceholderText('Hvad skal du?'), {
+    fireEvent.change(screen.getByPlaceholderText('What needs to be done?'), {
       target: { value: 'New task' },
     });
-    fireEvent.click(screen.getByText('Gem'));
+    fireEvent.click(screen.getByText('Save'));
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ title: 'New task' }));
   });
 
   it('does not call onSave with empty title', () => {
     const onSave = vi.fn();
     render(<TaskModal isOpen={true} onClose={() => {}} onSave={onSave} />);
-    fireEvent.click(screen.getByText('Gem'));
+    fireEvent.click(screen.getByText('Save'));
     expect(onSave).not.toHaveBeenCalled();
   });
 
   it('toggles extra fields on click', () => {
     render(<TaskModal isOpen={true} onClose={() => {}} onSave={() => {}} />);
-    expect(screen.queryByText('Prioritet')).toBeNull();
-    fireEvent.click(screen.getByText('Flere indstillinger'));
-    expect(screen.getByText('Prioritet')).toBeTruthy();
+    expect(screen.queryByText('Priority')).toBeNull();
+    fireEvent.click(screen.getByText('More options'));
+    expect(screen.getByText('Priority')).toBeTruthy();
   });
 
   it('pre-fills fields when editing', () => {
@@ -62,7 +62,7 @@ describe('TaskModal', () => {
       recurrenceRule: null,
     };
     render(<TaskModal isOpen={true} onClose={() => {}} onSave={() => {}} editTask={task as any} />);
-    expect((screen.getByPlaceholderText('Hvad skal du?') as HTMLInputElement).value).toBe('Existing');
+    expect((screen.getByPlaceholderText('What needs to be done?') as HTMLInputElement).value).toBe('Existing');
   });
 
   it('shows delete button when editing', () => {
@@ -76,7 +76,7 @@ describe('TaskModal', () => {
         editTask={{ id: '1', title: 'X' } as any}
       />
     );
-    expect(screen.getByText('Slet')).toBeTruthy();
+    expect(screen.getByText('Delete')).toBeTruthy();
   });
 
   it('is hidden when isOpen is false', () => {
@@ -159,11 +159,11 @@ describe('TaskModal', () => {
     });
     fireEvent.click(screen.getByLabelText('Mark "Updated subtask" as completed'));
     fireEvent.click(screen.getByLabelText('Delete "Remove me"'));
-    fireEvent.click(screen.getByText('Tilføj underopgave'));
-    fireEvent.change(screen.getByPlaceholderText('Ny underopgave'), {
+    fireEvent.click(screen.getByText('Add subtask'));
+    fireEvent.change(screen.getByPlaceholderText('New subtask...'), {
       target: { value: 'Brand new subtask' },
     });
-    fireEvent.click(screen.getByText('Gem'));
+    fireEvent.click(screen.getByText('Save'));
 
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -205,7 +205,7 @@ describe('TaskModal', () => {
     fireEvent.change(screen.getByDisplayValue('Must stay named'), {
       target: { value: '   ' },
     });
-    fireEvent.click(screen.getByText('Gem'));
+    fireEvent.click(screen.getByText('Save'));
 
     expect(onSave).not.toHaveBeenCalled();
     expect(screen.getByRole('dialog')).toBeTruthy();
@@ -269,7 +269,7 @@ describe('TaskModal', () => {
     // Extra panel is open automatically when recurrence rule is present
     expect((screen.getByRole('combobox') as HTMLSelectElement).value).toBe('weekdays');
     // Saving without changes must preserve the prefilled weekdays rule
-    fireEvent.click(screen.getByText('Gem'));
+    fireEvent.click(screen.getByText('Save'));
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({ recurrenceRule: { type: 'weekdays', days: [1, 5] } })
     );
@@ -288,7 +288,7 @@ describe('TaskModal', () => {
     expect((screen.getByRole('combobox') as HTMLSelectElement).value).toBe('days_after');
     const intervalInput = screen.getByRole('spinbutton') as HTMLInputElement;
     expect(intervalInput.value).toBe('14');
-    fireEvent.click(screen.getByText('Gem'));
+    fireEvent.click(screen.getByText('Save'));
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({ recurrenceRule: { type: 'days_after', interval: 14 } })
     );
@@ -297,15 +297,15 @@ describe('TaskModal', () => {
   it('saves weekdays recurrence payload', () => {
     const onSave = vi.fn();
     render(<TaskModal isOpen={true} onClose={() => {}} onSave={onSave} />);
-    fireEvent.change(screen.getByPlaceholderText('Hvad skal du?'), {
+    fireEvent.change(screen.getByPlaceholderText('What needs to be done?'), {
       target: { value: 'Repeat task' },
     });
-    fireEvent.click(screen.getByText('Flere indstillinger'));
+    fireEvent.click(screen.getByText('More options'));
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'weekdays' } });
     // 'M' = Monday (index 1), 'F' = Friday (index 5) — unique labels in WEEKDAY_LABELS
     fireEvent.click(screen.getByText('M'));
     fireEvent.click(screen.getByText('F'));
-    fireEvent.click(screen.getByText('Gem'));
+    fireEvent.click(screen.getByText('Save'));
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({ recurrenceRule: { type: 'weekdays', days: [1, 5] } })
     );
@@ -314,13 +314,13 @@ describe('TaskModal', () => {
   it('saves days_after recurrence payload', () => {
     const onSave = vi.fn();
     render(<TaskModal isOpen={true} onClose={() => {}} onSave={onSave} />);
-    fireEvent.change(screen.getByPlaceholderText('Hvad skal du?'), {
+    fireEvent.change(screen.getByPlaceholderText('What needs to be done?'), {
       target: { value: 'Interval task' },
     });
-    fireEvent.click(screen.getByText('Flere indstillinger'));
+    fireEvent.click(screen.getByText('More options'));
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'days_after' } });
     fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '10' } });
-    fireEvent.click(screen.getByText('Gem'));
+    fireEvent.click(screen.getByText('Save'));
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({ recurrenceRule: { type: 'days_after', interval: 10 } })
     );
@@ -329,13 +329,13 @@ describe('TaskModal', () => {
   it('saves months_after recurrence payload', () => {
     const onSave = vi.fn();
     render(<TaskModal isOpen={true} onClose={() => {}} onSave={onSave} />);
-    fireEvent.change(screen.getByPlaceholderText('Hvad skal du?'), {
+    fireEvent.change(screen.getByPlaceholderText('What needs to be done?'), {
       target: { value: 'Monthly task' },
     });
-    fireEvent.click(screen.getByText('Flere indstillinger'));
+    fireEvent.click(screen.getByText('More options'));
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'months_after' } });
     fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '3' } });
-    fireEvent.click(screen.getByText('Gem'));
+    fireEvent.click(screen.getByText('Save'));
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({ recurrenceRule: { type: 'months_after', interval: 3 } })
     );
@@ -344,13 +344,13 @@ describe('TaskModal', () => {
   it('omits recurrenceRule when weekdays type is selected but no days are chosen', () => {
     const onSave = vi.fn();
     render(<TaskModal isOpen={true} onClose={() => {}} onSave={onSave} />);
-    fireEvent.change(screen.getByPlaceholderText('Hvad skal du?'), {
+    fireEvent.change(screen.getByPlaceholderText('What needs to be done?'), {
       target: { value: 'Task' },
     });
-    fireEvent.click(screen.getByText('Flere indstillinger'));
+    fireEvent.click(screen.getByText('More options'));
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'weekdays' } });
     // Intentionally select no days
-    fireEvent.click(screen.getByText('Gem'));
+    fireEvent.click(screen.getByText('Save'));
     expect(onSave).toHaveBeenCalledTimes(1);
     const savedInput = onSave.mock.calls[0][0];
     expect(savedInput.recurrenceRule).toBeUndefined();

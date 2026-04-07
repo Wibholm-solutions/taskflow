@@ -37,11 +37,11 @@ async function swipeRightToComplete(page: import('@playwright/test').Page, text:
 
 test.describe('Undo complete', () => {
   test('undo brings task back', async ({ page, apiHelper }) => {
-    await apiHelper.createTask({ title: 'Undo mig' });
+    await apiHelper.createTask({ title: 'Undo me' });
     await page.goto('/');
-    await expect(page.getByText('Undo mig')).toBeVisible();
+    await expect(page.getByText('Undo me')).toBeVisible();
 
-    await swipeRightToComplete(page, 'Undo mig');
+    await swipeRightToComplete(page, 'Undo me');
 
     // Snackbar should appear with undo button
     await expect(page.getByRole('button', { name: /undo/i })).toBeVisible({ timeout: 2000 });
@@ -50,21 +50,21 @@ test.describe('Undo complete', () => {
     await page.getByRole('button', { name: /undo/i }).click();
 
     // Task should reappear
-    await expect(page.getByText('Undo mig')).toBeVisible();
+    await expect(page.getByText('Undo me')).toBeVisible();
   });
 
   test('task completes after delay expires', async ({ page, apiHelper }) => {
-    await apiHelper.createTask({ title: 'Vent på mig' });
+    await apiHelper.createTask({ title: 'Wait for me' });
     await page.goto('/');
-    await expect(page.getByText('Vent på mig')).toBeVisible();
+    await expect(page.getByText('Wait for me')).toBeVisible();
 
-    await swipeRightToComplete(page, 'Vent på mig');
+    await swipeRightToComplete(page, 'Wait for me');
 
     // Wait for snackbar to disappear (5s delay + margin)
     await expect(page.getByRole('button', { name: /undo/i })).not.toBeVisible({ timeout: 7000 });
 
     // Verify task is gone from server
     await page.reload();
-    await expect(page.getByText('Vent på mig')).not.toBeVisible();
+    await expect(page.getByText('Wait for me')).not.toBeVisible();
   });
 });
