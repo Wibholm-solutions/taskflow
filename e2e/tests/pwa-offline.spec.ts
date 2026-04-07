@@ -6,8 +6,8 @@ test.describe('PWA offline', () => {
     const page = await context.newPage();
 
     // First visit primes the cache and should land on the scoped app URL.
-    await page.goto('http://localhost:3000/todo');
-    await expect(page).toHaveURL('http://localhost:3000/todo/');
+    await page.goto('http://localhost:3000/');
+    await expect(page).toHaveURL(/\/$/); // ends with trailing slash
     await expect(page.getByText('TaskFlow')).toBeVisible();
 
     await page.waitForFunction(async () => {

@@ -9,7 +9,7 @@ test.describe('Task sorting', () => {
     await apiHelper.createTask({ title: 'Forfalden opgave', deadline: yesterday });
     await apiHelper.createTask({ title: 'Ingen deadline' });
 
-    await page.goto('/todo');
+    await page.goto('/');
 
     // Get all task titles in order
     const titles = await page.locator('[data-priority] .text-white.text-sm').allTextContents();
@@ -27,7 +27,7 @@ test.describe('Task sorting', () => {
     await apiHelper.createTask({ title: 'Høj prioritet', priority: 'high' });
     await apiHelper.createTask({ title: 'Normal prioritet', priority: 'default' });
 
-    await page.goto('/todo');
+    await page.goto('/');
 
     const titles = await page.locator('[data-priority] .text-white.text-sm').allTextContents();
 
@@ -45,7 +45,7 @@ test.describe('Task sorting', () => {
     await apiHelper.createTask({ title: 'Aktiv opgave' });
     await apiHelper.createTask({ title: 'Kommende opgave', notBefore: nextWeek });
 
-    await page.goto('/todo');
+    await page.goto('/');
 
     // "Aktive" section
     await expect(page.getByText('Aktive')).toBeVisible();
@@ -66,7 +66,7 @@ test.describe('Task sorting', () => {
     const beta = await apiHelper.createTask({ title: 'Beta', priority: 'default' });
     const upcoming = await apiHelper.createTask({ title: 'Senere', notBefore: tomorrow });
 
-    await page.goto('/todo');
+    await page.goto('/');
 
     await page.getByTestId(`task-drag-handle-${alpha.id}`).click();
     await expect(page.getByRole('dialog')).toHaveCount(0);

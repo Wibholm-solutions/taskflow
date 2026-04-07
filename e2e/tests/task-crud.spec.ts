@@ -35,7 +35,7 @@ function taskTitle(page: Page, title: string) {
 
 test.describe('Task CRUD', () => {
   test('create a new task via modal', async ({ page }) => {
-    await page.goto('/todo');
+    await page.goto('/');
 
     // Open modal
     await page.getByLabel('Opret opgave').click();
@@ -51,7 +51,7 @@ test.describe('Task CRUD', () => {
   });
 
   test('create task with all fields', async ({ page }) => {
-    await page.goto('/todo');
+    await page.goto('/');
 
     await page.getByLabel('Opret opgave').click();
     await page.getByPlaceholder('Hvad skal du?').fill('Vigtig opgave');
@@ -77,7 +77,7 @@ test.describe('Task CRUD', () => {
 
   test('edit an existing task', async ({ page, apiHelper }) => {
     await apiHelper.createTask({ title: 'Gammel titel' });
-    await page.goto('/todo');
+    await page.goto('/');
 
     // Click on task to open edit modal
     await page.getByText('Gammel titel').click();
@@ -96,7 +96,7 @@ test.describe('Task CRUD', () => {
 
   test('delete a task', async ({ page, apiHelper }) => {
     await apiHelper.createTask({ title: 'Slet mig' });
-    await page.goto('/todo');
+    await page.goto('/');
     await expect(page.getByText('Slet mig')).toBeVisible();
 
     // Click to open edit modal, then delete
@@ -108,7 +108,7 @@ test.describe('Task CRUD', () => {
   });
 
   test('empty title is rejected', async ({ page }) => {
-    await page.goto('/todo');
+    await page.goto('/');
 
     await page.getByLabel('Opret opgave').click();
 
@@ -120,7 +120,7 @@ test.describe('Task CRUD', () => {
   });
 
   test('cancel modal without saving', async ({ page }) => {
-    await page.goto('/todo');
+    await page.goto('/');
 
     await page.getByLabel('Opret opgave').click();
     await page.getByPlaceholder('Hvad skal du?').fill('Skal ikke gemmes');
@@ -131,7 +131,7 @@ test.describe('Task CRUD', () => {
   });
 
   test('create, edit, and complete a parent task with subtasks', async ({ page, apiHelper }) => {
-    await page.goto('/todo');
+    await page.goto('/');
 
     await page.getByLabel('Opret opgave').click();
     await page.getByPlaceholder('Hvad skal du?').fill('Plan weekendtur');
