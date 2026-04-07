@@ -1,7 +1,9 @@
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
+import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { subtasks, tasks } from '../db/schema';
 import { executeCompletion } from './completionOrchestrator';
+import { normalizeDate, normalizeSubtaskTitle, buildSubtaskInserts } from './helpers';
 export { SubtasksConfirmationRequiredError } from './completionOrchestrator';
 import type {
   CompleteTaskOptions,
@@ -9,7 +11,6 @@ import type {
   CreateTaskInput,
   Priority,
   ReorderTasksInput,
-  SubtaskInput,
   SubtaskResponse,
   TaskResponse,
   UpdateTaskInput,
@@ -19,11 +20,6 @@ type TaskRow = typeof tasks.$inferSelect;
 type SubtaskRow = typeof subtasks.$inferSelect;
 
 const PRIORITY_ORDER: Record<string, number> = { high: 0, default: 1, low: 2 };
-
-function normalizeDate(value?: string | null): string | null {
-  if (!value) return null;
-  return new Date(value).toISOString().slice(0, 10);
-}
 
 function compareUrgencyAndPriority(a: TaskResponse, b: TaskResponse, today: string): number {
   const aDue = Boolean(a.deadline && a.deadline <= today);
@@ -143,38 +139,6 @@ function toTaskResponse(row: TaskRow, childSubtasks: SubtaskRow[]): TaskResponse
   };
 }
 
-function normalizeSubtaskTitle(title: string): string {
-  return title.trim();
-}
-
-function buildSubtaskInsert(taskId: string, input: SubtaskInput, now: string) {
-  const title = normalizeSubtaskTitle(input.title);
-  if (!title) return null;
-
-  const isCompleted = input.isCompleted === true ? 1 : 0;
-  return {
-    id: nanoid(),
-    taskId,
-    title,
-    isCompleted,
-    completedAt: isCompleted ? now : null,
-    createdAt: now,
-    updatedAt: now,
-  };
-}
-
-function buildSubtaskInserts(taskId: string, inputs: SubtaskInput[] | undefined, now: string) {
-  if (!inputs || inputs.length === 0) return [];
-
-  const baseTime = new Date(now).getTime();
-  return inputs
-    .map((subtask, index) => {
-      const subtaskTimestamp = new Date(baseTime + index).toISOString();
-      return buildSubtaskInsert(taskId, subtask, subtaskTimestamp);
-    })
-    .filter((subtask): subtask is NonNullable<typeof subtask> => subtask !== null);
-}
-
 async function listSubtasks(db: any, taskIds: string[]): Promise<SubtaskRow[]> {
   if (taskIds.length === 0) return [];
 
@@ -212,7 +176,7 @@ async function getTaskAggregates(db: any, taskRows: TaskRow[]): Promise<TaskResp
 }
 
 export class TaskService {
-  constructor(private db: any) {}
+  constructor(private db: BetterSQLite3Database<any>) {}
 
   async create(input: CreateTaskInput, userId: string): Promise<TaskResponse> {
     const id = nanoid();
