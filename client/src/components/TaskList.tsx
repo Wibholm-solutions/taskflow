@@ -76,8 +76,8 @@ export function TaskList({
     return (
       <div className="text-center py-12">
         <div className="text-4xl mb-3">&#10003;</div>
-        <p className="text-gray-400">Ingen opgaver endnu</p>
-        <p className="text-gray-500 text-sm mt-1">Tryk + for at oprette en</p>
+        <p className="text-gray-400">No tasks yet</p>
+        <p className="text-gray-500 text-sm mt-1">Tap + to add your first one!</p>
       </div>
     );
   }
@@ -87,7 +87,7 @@ export function TaskList({
       {active.length > 0 && (
         <div>
           <h2 className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-2">
-            Aktive
+            Active
           </h2>
           {active.map((task, index) => (
             <div key={task.id}>
@@ -121,7 +121,7 @@ export function TaskList({
       {upcoming.length > 0 && (
         <div className={active.length > 0 ? 'mt-6' : ''}>
           <h2 className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-2">
-            Kommende
+            Upcoming
           </h2>
           {upcoming.map((task) => (
             <div key={task.id} data-testid={`task-${task.id}`}>

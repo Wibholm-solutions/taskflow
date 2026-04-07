@@ -98,12 +98,13 @@ export function FeedbackButton({
               <svg className="h-10 w-10 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <p className="font-medium text-gray-900 dark:text-white">Tak for din feedback!</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Vi har oprettet et issue.</p>
+              <p className="font-medium text-gray-900 dark:text-white">Thanks for your feedback!</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">We've created an issue.</p>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="flex flex-col gap-3">
               <h3 className="font-semibold text-gray-900 dark:text-white">Send feedback</h3>
+
 
               {/* Type selector */}
               <div className="flex gap-1.5">
@@ -123,19 +124,19 @@ export function FeedbackButton({
                 ))}
               </div>
 
-              {/* Kort beskrivelse */}
+              {/* Brief description */}
               <input
                 type="text"
-                placeholder="Kort beskrivelse"
+                placeholder="Brief description"
                 value={shortDesc}
                 onChange={(e) => setShortDesc(e.target.value)}
                 required
                 className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-500"
               />
 
-              {/* Uddybende */}
+              {/* Details */}
               <textarea
-                placeholder="Uddyb gerne..."
+                placeholder="Tell us more..."
                 value={details}
                 onChange={(e) => setDetails(e.target.value)}
                 rows={3}
@@ -156,7 +157,7 @@ export function FeedbackButton({
 
               {/* Error message */}
               {status === "error" && (
-                <p className="text-xs text-red-500">Noget gik galt. Prøv igen.</p>
+                <p className="text-xs text-red-500">Something went wrong. Please try again.</p>
               )}
 
               {/* Submit */}
@@ -165,7 +166,7 @@ export function FeedbackButton({
                 disabled={status === "submitting"}
                 className="rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-600 disabled:opacity-50"
               >
-                {status === "submitting" ? "Sender..." : "Send"}
+                {status === "submitting" ? "Sending..." : "Submit"}
               </button>
             </form>
           )}

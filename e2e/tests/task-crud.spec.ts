@@ -38,82 +38,82 @@ test.describe('Task CRUD', () => {
     await page.goto('/');
 
     // Open modal
-    await page.getByLabel('Opret opgave').click();
+    await page.getByLabel('Create task').click();
     await expect(page.getByRole('dialog')).toBeVisible();
 
     // Fill title and save
-    await page.getByPlaceholder('Hvad skal du?').fill('Køb mælk');
-    await page.getByRole('button', { name: 'Gem' }).click();
+    await page.getByPlaceholder('What needs to be done?').fill('Buy milk');
+    await page.getByRole('button', { name: 'Save' }).click();
 
     // Modal closes, task appears
     await expect(page.getByRole('dialog')).not.toBeVisible();
-    await expect(page.getByText('Køb mælk')).toBeVisible();
+    await expect(page.getByText('Buy milk')).toBeVisible();
   });
 
   test('create task with all fields', async ({ page }) => {
     await page.goto('/');
 
-    await page.getByLabel('Opret opgave').click();
-    await page.getByPlaceholder('Hvad skal du?').fill('Vigtig opgave');
+    await page.getByLabel('Create task').click();
+    await page.getByPlaceholder('What needs to be done?').fill('Important task');
 
     // Expand extra fields
-    await page.getByText('Flere indstillinger').click();
+    await page.getByText('More options').click();
 
     // Set description
-    await page.locator('textarea').fill('En detaljeret beskrivelse');
+    await page.locator('textarea').fill('A detailed description');
 
     // Set deadline
     await page.locator('input[type="date"]').fill('2026-12-31');
 
     // Set high priority
-    await page.getByRole('button', { name: 'Høj' }).click();
+    await page.getByRole('button', { name: 'High' }).click();
 
-    await page.getByRole('button', { name: 'Gem' }).click();
+    await page.getByRole('button', { name: 'Save' }).click();
 
     // Verify task appears with priority indicator
-    await expect(page.getByText('Vigtig opgave')).toBeVisible();
+    await expect(page.getByText('Important task')).toBeVisible();
     await expect(page.locator('[data-priority="high"]')).toBeVisible();
   });
 
   test('edit an existing task', async ({ page, apiHelper }) => {
-    await apiHelper.createTask({ title: 'Gammel titel' });
+    await apiHelper.createTask({ title: 'Old title' });
     await page.goto('/');
 
     // Click on task to open edit modal
-    await page.getByText('Gammel titel').click();
+    await page.getByText('Old title').click();
     await expect(page.getByRole('dialog')).toBeVisible();
 
     // Change title
-    const titleInput = page.getByPlaceholder('Hvad skal du?');
+    const titleInput = page.getByPlaceholder('What needs to be done?');
     await titleInput.clear();
-    await titleInput.fill('Ny titel');
-    await page.getByRole('button', { name: 'Gem' }).click();
+    await titleInput.fill('New title');
+    await page.getByRole('button', { name: 'Save' }).click();
 
     // Verify updated
-    await expect(page.getByText('Ny titel')).toBeVisible();
-    await expect(page.getByText('Gammel titel')).not.toBeVisible();
+    await expect(page.getByText('New title')).toBeVisible();
+    await expect(page.getByText('Old title')).not.toBeVisible();
   });
 
   test('delete a task', async ({ page, apiHelper }) => {
-    await apiHelper.createTask({ title: 'Slet mig' });
+    await apiHelper.createTask({ title: 'Delete me' });
     await page.goto('/');
-    await expect(page.getByText('Slet mig')).toBeVisible();
+    await expect(page.getByText('Delete me')).toBeVisible();
 
     // Click to open edit modal, then delete
-    await page.getByText('Slet mig').click();
-    await page.getByRole('button', { name: 'Slet' }).click();
+    await page.getByText('Delete me').click();
+    await page.getByRole('button', { name: 'Delete' }).click();
 
     // Task gone
-    await expect(page.getByText('Slet mig')).not.toBeVisible();
+    await expect(page.getByText('Delete me')).not.toBeVisible();
   });
 
   test('empty title is rejected', async ({ page }) => {
     await page.goto('/');
 
-    await page.getByLabel('Opret opgave').click();
+    await page.getByLabel('Create task').click();
 
     // Try to save with empty title
-    await page.getByRole('button', { name: 'Gem' }).click();
+    await page.getByRole('button', { name: 'Save' }).click();
 
     // Modal should still be open (save refused client-side)
     await expect(page.getByRole('dialog')).toBeVisible();
@@ -122,24 +122,24 @@ test.describe('Task CRUD', () => {
   test('cancel modal without saving', async ({ page }) => {
     await page.goto('/');
 
-    await page.getByLabel('Opret opgave').click();
-    await page.getByPlaceholder('Hvad skal du?').fill('Skal ikke gemmes');
-    await page.getByRole('button', { name: 'Annuller' }).click();
+    await page.getByLabel('Create task').click();
+    await page.getByPlaceholder('What needs to be done?').fill('Should not be saved');
+    await page.getByRole('button', { name: 'Cancel' }).click();
 
     await expect(page.getByRole('dialog')).not.toBeVisible();
-    await expect(page.getByText('Skal ikke gemmes')).not.toBeVisible();
+    await expect(page.getByText('Should not be saved')).not.toBeVisible();
   });
 
   test('create, edit, and complete a parent task with subtasks', async ({ page, apiHelper }) => {
     await page.goto('/');
 
-    await page.getByLabel('Opret opgave').click();
-    await page.getByPlaceholder('Hvad skal du?').fill('Plan weekendtur');
-    await page.getByRole('button', { name: 'Tilføj underopgave' }).click();
-    await page.getByPlaceholder('Ny underopgave').nth(0).fill('Pak tøj');
-    await page.getByRole('button', { name: 'Tilføj underopgave' }).click();
-    await page.getByPlaceholder('Ny underopgave').nth(1).fill('Book hotel');
-    await page.getByRole('button', { name: 'Gem' }).click();
+    await page.getByLabel('Create task').click();
+    await page.getByPlaceholder('What needs to be done?').fill('Plan weekendtur');
+    await page.getByRole('button', { name: 'Add subtask' }).click();
+    await page.getByPlaceholder('New subtask...').nth(0).fill('Pack clothes');
+    await page.getByRole('button', { name: 'Add subtask' }).click();
+    await page.getByPlaceholder('New subtask...').nth(1).fill('Book hotel');
+    await page.getByRole('button', { name: 'Save' }).click();
 
     await expect(taskTitle(page, 'Plan weekendtur')).toBeVisible();
     await expect(page.getByText('0/2')).toBeVisible();
@@ -149,19 +149,19 @@ test.describe('Task CRUD', () => {
 
     await page.getByText('Plan weekendtur').click();
     await expect(page.getByRole('dialog')).toBeVisible();
-    await page.locator('input[value="Pak tøj"]').fill('Pak varmt tøj');
+    await page.locator('input[value="Pack clothes"]').fill('Pack warm clothes');
     await page.getByLabel('Mark "Book hotel" as completed').check();
-    await page.getByRole('button', { name: 'Tilføj underopgave' }).click();
-    await page.getByPlaceholder('Ny underopgave').fill('Køb snacks');
-    await page.getByRole('button', { name: 'Gem' }).click();
+    await page.getByRole('button', { name: 'Add subtask' }).click();
+    await page.getByPlaceholder('New subtask...').fill('Buy snacks');
+    await page.getByRole('button', { name: 'Save' }).click();
 
     await expect(page.getByText('1/3')).toBeVisible();
 
     await page.getByText('Plan weekendtur').click();
-    await expect(page.locator('input[value="Pak varmt tøj"]')).toBeVisible();
+    await expect(page.locator('input[value="Pack warm clothes"]')).toBeVisible();
     await expect(page.getByLabel('Mark "Book hotel" as completed')).toBeChecked();
-    await expect(page.locator('input[value="Køb snacks"]')).toBeVisible();
-    await page.getByRole('button', { name: 'Annuller' }).click();
+    await expect(page.locator('input[value="Buy snacks"]')).toBeVisible();
+    await page.getByRole('button', { name: 'Cancel' }).click();
 
     await swipeTaskToComplete(page, 'Plan weekendtur');
     await expect(
