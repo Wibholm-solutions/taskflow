@@ -44,6 +44,8 @@ docker compose up -d
 
 The container builds a production image, runs on port 3000 internally, and persists the SQLite database in `./data/`.
 
+The interface a deployment authority may rely on — image and process, port, base path, health endpoint, configuration, and what a rollback may assume about the SQLite data — is [`docs/runtime-contract.md`](docs/runtime-contract.md). This repository does not deploy; server-specific desired state and convergence belong to `saabendtsen/home-server`.
+
 ## Configuration
 
 Environment variables (see `.env.example`):
@@ -52,7 +54,7 @@ Environment variables (see `.env.example`):
 |-----------------------|------------------------|--------------------------------------------------|
 | `PORT`                | `3000`                 | Server listen port (inside container)            |
 | `DATABASE_PATH`       | `./data/taskflow.db`   | Path to the SQLite database file                 |
-| `BASE_PATH`           | `/`                    | URL prefix for reverse-proxy setups              |
+| `BASE_PATH`           | `/todo`                | URL prefix for reverse-proxy setups. The server's fallback is `/todo`, not `/`; the Dockerfile's build-time default is `/`, and the published image is built with `/todo`. Both halves must agree — see the runtime contract. |
 | `NODE_ENV`            | `development`          | Set to `production` in Docker                    |
 | `HOST_PORT`           | `3000`                 | Host port mapped in docker-compose               |
 | `VITE_FEEDBACK_REPO`  | --                     | Optional: GitHub repo for feedback button        |
