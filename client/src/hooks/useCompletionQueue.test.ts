@@ -167,6 +167,37 @@ describe('useCompletionQueue', () => {
     expect(result.current.pendingCompletions).toHaveLength(0);
   });
 
+  it('flushCompletions restores and reports the error when onComplete rejects', async () => {
+    const deps = makeDeps({
+      onComplete: vi.fn().mockRejectedValue(new Error('network down')),
+    });
+    const { result } = renderHook(() => useCompletionQueue(deps));
+
+    const taskSnapshot = makeTask();
+    act(() => {
+      result.current.enqueue({
+        taskId: 'task-1',
+        taskSnapshot,
+        originalList: 'active',
+        originalIndex: 0,
+        completeRemainingSubtasks: false,
+      });
+    });
+
+    act(() => {
+      result.current.flushCompletions();
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(deps.onComplete).toHaveBeenCalledTimes(1);
+    expect(deps.onError).toHaveBeenCalledWith('network down');
+    expect(deps.onRestore).toHaveBeenCalledWith(taskSnapshot, 'active', 0);
+  });
+
   it('evicts oldest when exceeding MAX_PENDING (3)', () => {
     const deps = makeDeps();
     const { result } = renderHook(() => useCompletionQueue(deps));

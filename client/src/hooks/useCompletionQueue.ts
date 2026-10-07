@@ -71,7 +71,12 @@ export function useCompletionQueue(deps: CompletionQueueDeps): CompletionQueueRe
       for (const entry of prev) {
         clearTimeout(entry.timerId);
         const options = entry.completeRemainingSubtasks ? { completeRemainingSubtasks: true } : undefined;
-        deps.onComplete(entry.taskId, options);
+        deps.onComplete(entry.taskId, options).then(() => {
+          deps.refresh();
+        }).catch((e: any) => {
+          deps.onRestore(entry.taskSnapshot, entry.originalList, entry.originalIndex);
+          deps.onError(e.message);
+        });
       }
       return [];
     });
