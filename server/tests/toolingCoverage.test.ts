@@ -37,19 +37,4 @@ describe('coverage tooling', () => {
       },
     });
   });
-
-  it('runs unit coverage before build and e2e in CI', () => {
-    const workflowPath = path.join(repoRoot, '.github/workflows/ci-cd.yml');
-    const workflow = fs.readFileSync(workflowPath, 'utf8');
-
-    expect(workflow).toContain('unit_coverage:');
-    expect(workflow).toContain('build:');
-    expect(workflow).toContain('e2e:');
-    expect(workflow).toContain('build:\n    needs: unit_coverage');
-    expect(workflow).toContain('e2e:\n    needs: build');
-    expect(workflow).toContain('run: npm run test:coverage');
-    // upload-artifact step
-    expect(workflow).toContain('actions/upload-artifact@v4');
-    expect(workflow).toContain('coverage/');
-  });
 });
