@@ -79,6 +79,15 @@ describe('Task API', () => {
       expect(res.status).toBe(400);
     });
 
+    it('should reject whitespace-only title', async () => {
+      const res = await app.request('/todo/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: '   ' }),
+      });
+      expect(res.status).toBe(400);
+    });
+
     it('should reject invalid priority', async () => {
       const res = await app.request('/todo/api/tasks', {
         method: 'POST',
