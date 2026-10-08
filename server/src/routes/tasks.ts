@@ -85,6 +85,7 @@ function validateSubtaskMutations(subtaskMutations: any): string | null {
 function validateCreateInput(body: any): string | null {
   if (!isObject(body)) return 'invalid request body';
   if (!body.title || typeof body.title !== 'string') return 'title is required';
+  if (body.title.trim().length === 0) return 'title is required';
   if (body.title.length > 200) return 'title must be 200 chars or less';
   if (body.priority && !VALID_PRIORITIES.includes(body.priority)) return 'invalid priority';
   if (body.deadline && isNaN(Date.parse(body.deadline))) return 'invalid deadline date';
